@@ -23,11 +23,12 @@ std::string ConstantSymbolEntry::toStr()
 IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type, std::string name, int scope) : SymbolEntry(type, SymbolEntry::VARIABLE), name(name)
 {
     this->scope = scope;
+    addr = nullptr;
 }
 
 std::string IdentifierSymbolEntry::toStr()
 {
-    return name;
+    return "@" + name;
 }
 
 TemporarySymbolEntry::TemporarySymbolEntry(Type *type, int label) : SymbolEntry(type, SymbolEntry::TEMPORARY)
@@ -38,7 +39,7 @@ TemporarySymbolEntry::TemporarySymbolEntry(Type *type, int label) : SymbolEntry(
 std::string TemporarySymbolEntry::toStr()
 {
     std::ostringstream buffer;
-    buffer << "t" << label;
+    buffer << "%t" << label;
     return buffer.str();
 }
 
@@ -67,76 +68,9 @@ SymbolTable::SymbolTable(SymbolTable *prev)
     4. If you find the entry, return it.
     5. If you can't find it in all symbol tables, return nullptr.
 */
-
-/*
- * use the following codes as example:
- *
- * ---------------------------------------------------
- * $scope 0
- * int main{
- * $scope 1
- *  {
- *      $scope 1.1
- *      {
- *          $scope 1.1.1        <-scan label 1
- *      }
- *      {
- *          $scope 1.1.2        <-scan label 2
- *      }
- *  }
- *  {
- *      $scope 1.2
- *      {
- *          $scope 1.2.1        <-scan label 3
- *      }
- *  }
- * }
- *
- * void F(){
- * $scope 2
- *  {
- *      $scope 2.1
- *  }
- * }
- * ---------------------------------------------------
- *
- * while scanning label 1,the stack would be like
- *
- * |    scope 0     |   <-stack bottom
- * |    scope 1     |
- * |    scope 1.1   |
- * |    scope 1.1.1 |   <-stack top
- *
- *
- * while scanning label 2,the stack would be like
- *
- * |    scope 0     |   <-stack bottom
- * |    scope 1     |
- * |    scope 1.1   |
- * |    scope 1.1.2 |   <-stack top
- *
- * while scanning label 3,the stack would be like
- *
- * |    scope 0     |   <-stack bottom
- * |    scope 1     |
- * |    scope 1.2   |
- * |    scope 1.2.1 |   <-stack top
- *
- * symbol table would be a static table in my original thought,which would be constructed like a tree.
- * In fact,the tree-relationship is hidden in syntax tree,symbol table is dynamic maintained
- *
- *
- * */
 SymbolEntry* SymbolTable::lookup(std::string name)
 {
     // Todo
-    SymbolTable*cur=this;
-    while (cur!=NULL){
-        if (cur->symbolTable.find(name)!=cur->symbolTable.end()) {
-            return cur->symbolTable[name];
-        }
-        cur=cur->prev;
-    }
     return nullptr;
 }
 

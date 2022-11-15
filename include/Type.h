@@ -3,14 +3,12 @@
 #include <vector>
 #include <string>
 
-class SymbolEntry;
-
 class Type
 {
 private:
     int kind;
 protected:
-    enum {INT, VOID, FUNC, FLOAT};
+    enum {INT, VOID, FUNC, PTR};
 public:
     Type(int kind) : kind(kind) {};
     virtual ~Type() {};
@@ -18,14 +16,6 @@ public:
     bool isInt() const {return kind == INT;};
     bool isVoid() const {return kind == VOID;};
     bool isFunc() const {return kind == FUNC;};
-    bool isFloat() const {return kind == FLOAT;};
-
-    int getKind() const {return kind;};
-
-    static int getInt() {return INT;};
-    static int getVoid() {return VOID;};
-    static int getFunc() {return FUNC;};
-    static int getFloat() {return FLOAT;};
 };
 
 class IntType : public Type
@@ -34,15 +24,6 @@ private:
     int size;
 public:
     IntType(int size) : Type(Type::INT), size(size){};
-    std::string toStr();
-};
-
-class FloatType : public Type
-{
-private:
-    float size;
-public:
-    FloatType(float size) : Type(Type::FLOAT), size(size){};
     std::string toStr();
 };
 
@@ -57,10 +38,20 @@ class FunctionType : public Type
 {
 private:
     Type *returnType;
-    std::vector<SymbolEntry*> paramsSymbolEntry;
+    std::vector<Type*> paramsType;
 public:
-    FunctionType(Type* returnType, std::vector<SymbolEntry*> paramsSymbolEntry) :
-    Type(Type::FUNC), returnType(returnType), paramsSymbolEntry(paramsSymbolEntry){};
+    FunctionType(Type* returnType, std::vector<Type*> paramsType) : 
+    Type(Type::FUNC), returnType(returnType), paramsType(paramsType){};
+    Type* getRetType() {return returnType;};
+    std::string toStr();
+};
+
+class PointerType : public Type
+{
+private:
+    Type *valueType;
+public:
+    PointerType(Type* valueType) : Type(Type::PTR) {this->valueType = valueType;};
     std::string toStr();
 };
 
@@ -68,12 +59,12 @@ class TypeSystem
 {
 private:
     static IntType commonInt;
-    static FloatType commonFloat;
+    static IntType commonBool;
     static VoidType commonVoid;
 public:
     static Type *intType;
-    static Type *floatType;
     static Type *voidType;
+    static Type *boolType;
 };
 
 #endif
