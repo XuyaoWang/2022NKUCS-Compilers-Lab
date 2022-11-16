@@ -2,6 +2,8 @@
 #define __AST_H__
 
 #include <fstream>
+#include <queue>
+#include <iostream>
 #include "Operand.h"
 
 class SymbolEntry;
@@ -14,7 +16,10 @@ class IRBuilder;
 class Node
 {
 private:
+    // static variable counter is used to record how many Nodes are created
     static int counter;
+
+    // seq is used to record the sequence that was created
     int seq;
 protected:
     std::vector<Instruction*> true_list;
@@ -26,6 +31,9 @@ protected:
 public:
     Node();
     int getSeq() const {return seq;};
+
+    // level is used to control the form of output,
+    // which determines how may space will be printed on outfile
     static void setIRBuilder(IRBuilder*ib) {builder = ib;};
     virtual void output(int level) = 0;
     virtual void typeCheck() = 0;
@@ -41,6 +49,8 @@ protected:
     Operand *dst;   // The result of the subtree is stored into dst.
 public:
     ExprNode(SymbolEntry *symbolEntry) : symbolEntry(symbolEntry){};
+
+    SymbolEntry *getSymbolEntry() const;
     Operand* getOperand() {return dst;};
     SymbolEntry* getSymPtr() {return symbolEntry;};
 };
@@ -51,8 +61,41 @@ private:
     int op;
     ExprNode *expr1, *expr2;
 public:
-    enum {ADD, SUB, AND, OR, LESS, GREATER};
-    BinaryExpr(SymbolEntry *se, int op, ExprNode*expr1, ExprNode*expr2) : ExprNode(se), op(op), expr1(expr1), expr2(expr2){dst = new Operand(se);};
+    enum {ADD, SUB, AND, OR, EQ, NEQ,LESS, LESSEQ , GREATER, GREATEREQ,MUL, DIV, MOD};
+    BinaryExpr(SymbolEntry *se, int op, ExprNode*expr1, ExprNode*expr2) : ExprNode(se), op(op), expr1(expr1), expr2(expr2){};
+    void output(int level);
+    void typeCheck();
+    void genCode();
+};
+
+class UnaryExpr : public ExprNode
+{
+private:
+    int op;
+    ExprNode *expr;
+public:
+    enum {ADD, SUB, NOT};
+    UnaryExpr(SymbolEntry *se, int op, ExprNode*expr) : ExprNode(se), op(op), expr(expr){};
+    void output(int level);
+};
+
+class CallExpr : public ExprNode{
+private:
+    ExprNode* params;
+
+public:
+    CallExpr(SymbolEntry* se,
+             ExprNode* params= nullptr):
+             ExprNode(se),params(params){};
+    void output(int level);
+};
+
+class FuncRParamExpr : public ExprNode{
+private:
+    std::vector<ExprNode*> params;
+public:
+    FuncRParamExpr(SymbolEntry *se) : ExprNode(se) {};
+    void insertParam(ExprNode *Exp);
     void output(int level);
     void typeCheck();
     void genCode();
@@ -67,6 +110,7 @@ public:
     void genCode();
 };
 
+// class Id is the identifier of a variable or a constant
 class Id : public ExprNode
 {
 public:
@@ -105,9 +149,24 @@ class DeclStmt : public StmtNode
 {
 private:
     Id *id;
+    ExprNode* expr;
 public:
-    DeclStmt(Id *id) : id(id){};
+    DeclStmt(Id *id,ExprNode* expr = nullptr) : id(id),expr(expr){};
     void output(int level);
+    void typeCheck();
+    void genCode();
+
+    Id *getId() const;
+};
+
+class DeclStmts:public StmtNode{
+private:
+    std::queue<StmtNode*> declStmts;
+public:
+    DeclStmts(){};
+    void insertDeclStmt(StmtNode*declStmt);
+    void output(int level);
+    std::vector<SymbolEntry*>getId();
     void typeCheck();
     void genCode();
 };
@@ -160,13 +219,25 @@ public:
     void genCode();
 };
 
+class ExprStmt : public StmtNode {
+private:
+    ExprNode* expr;
+
+public:
+    ExprStmt(ExprNode* expr) : expr(expr){};
+    void output(int level);
+    void typeCheck();
+    void genCode();
+};
+
 class FunctionDef : public StmtNode
 {
 private:
     SymbolEntry *se;
+    StmtNode* decl;
     StmtNode *stmt;
 public:
-    FunctionDef(SymbolEntry *se, StmtNode *stmt) : se(se), stmt(stmt){};
+    FunctionDef(SymbolEntry *se,StmtNode* decl, StmtNode *stmt) : se(se), decl(decl),stmt(stmt){};
     void output(int level);
     void typeCheck();
     void genCode();

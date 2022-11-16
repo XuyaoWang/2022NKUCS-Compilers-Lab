@@ -13,6 +13,8 @@ private:
     int kind;
 protected:
     enum {CONSTANT, VARIABLE, TEMPORARY};
+
+    // type stores the value of SymbolEntry
     Type *type;
 
 public:
@@ -80,6 +82,8 @@ private:
     Operand *addr;  // The address of the identifier.
     // You can add any field you need here.
 
+    int kind;
+
 public:
     IdentifierSymbolEntry(Type *type, std::string name, int scope);
     virtual ~IdentifierSymbolEntry() {};
@@ -91,6 +95,10 @@ public:
     void setAddr(Operand *addr) {this->addr = addr;};
     Operand* getAddr() {return addr;};
     // You can add any function you need here.
+
+    bool isGlobal() const {return kind == GLOBAL;};
+    bool isParam() const {return kind == PARAM;};
+    bool isLocal() const {return kind == LOCAL;};
 };
 
 

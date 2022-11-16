@@ -3,10 +3,12 @@
 
 IntType TypeSystem::commonInt = IntType(32);
 IntType TypeSystem::commonBool = IntType(1);
+FloatType TypeSystem::commonFloat = FloatType(32);
 VoidType TypeSystem::commonVoid = VoidType();
 
 Type* TypeSystem::intType = &commonInt;
 Type* TypeSystem::voidType = &commonVoid;
+Type* TypeSystem::floatType = &commonFloat;
 Type* TypeSystem::boolType = &commonBool;
 
 std::string IntType::toStr()
@@ -28,8 +30,11 @@ std::string FunctionType::toStr()
     return buffer.str();
 }
 
-std::string PointerType::toStr()
-{
+std::string FloatType::toStr() {
+    return "float";
+}
+
+std::string PointerType::toStr(){
     std::ostringstream buffer;
     buffer << valueType->toStr() << "*";
     return buffer.str();
