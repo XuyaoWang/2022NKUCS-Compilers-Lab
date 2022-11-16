@@ -3,8 +3,6 @@
 #include <string>
 #include "Type.h"
 
-// just use to merge
-
 extern FILE *yyout;
 int Node::counter = 0;
 
