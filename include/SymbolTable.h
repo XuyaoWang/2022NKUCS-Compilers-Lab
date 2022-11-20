@@ -95,10 +95,6 @@ public:
     void setAddr(Operand *addr) {this->addr = addr;};
     Operand* getAddr() {return addr;};
     // You can add any function you need here.
-
-    bool isGlobal() const {return kind == GLOBAL;};
-    bool isParam() const {return kind == PARAM;};
-    bool isLocal() const {return kind == LOCAL;};
 };
 
 

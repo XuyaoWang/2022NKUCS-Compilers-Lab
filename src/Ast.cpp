@@ -208,6 +208,14 @@ void FunctionDef::typeCheck()
 void BinaryExpr::typeCheck()
 {
     // Todo
+    Type *type1 = expr1->getSymPtr()->getType();
+    Type *type2 = expr2->getSymPtr()->getType();
+    if(type1 != type2)
+    {
+        fprintf(stderr, "type %s and %s mismatch in line xx",type1->toStr().c_str(), type2->toStr().c_str());
+        exit(EXIT_FAILURE);
+    }
+    symbolEntry->setType(type1);
 }
 
 void Constant::typeCheck()
@@ -331,6 +339,14 @@ void UnaryExpr::output(int level)
     expr->output(level + 4);
 }
 
+void UnaryExpr::typeCheck() {
+
+}
+
+void UnaryExpr::genCode() {
+
+}
+
 void Constant::output(int level)
 {
     std::string type, value;
@@ -360,8 +376,10 @@ void CompoundStmt::output(int level)
 
 void SeqNode::output(int level)
 {
-    stmt1->output(level);
-    stmt2->output(level);
+    if(nullptr!=stmt1)
+        stmt1->output(level);
+    if(nullptr!=stmt1)
+        stmt2->output(level);
 }
 
 void DeclStmt::output(int level)
@@ -447,10 +465,26 @@ std::vector<SymbolEntry *> DeclStmts::getId() {
     return symbolEntry;
 }
 
+void DeclStmts::typeCheck() {
+
+}
+
+void DeclStmts::genCode() {
+
+}
+
 void WhileStmt::output(int level) {
     fprintf(yyout, "%*cWhileStmt\n", level, ' ');
     cond->output(level + 4);
     stmt->output(level + 4);
+}
+
+void WhileStmt::typeCheck() {
+
+}
+
+void WhileStmt::genCode() {
+
 }
 
 SymbolEntry *ExprNode::getSymbolEntry() const {
@@ -469,6 +503,14 @@ void FuncRParamExpr::insertParam(ExprNode *Exp) {
     params.push_back(Exp);
 }
 
+void FuncRParamExpr::typeCheck() {
+
+}
+
+void FuncRParamExpr::genCode() {
+
+}
+
 void CallExpr::output(int level) {
     std::string name, type;
     int scope;
@@ -481,6 +523,22 @@ void CallExpr::output(int level) {
         params->output(level+4);
 }
 
+void CallExpr::typeCheck() {
+
+}
+
+void CallExpr::genCode() {
+
+}
+
 void ExprStmt::output(int level) {
     expr->output(level);
+}
+
+void ExprStmt::typeCheck() {
+
+}
+
+void ExprStmt::genCode() {
+
 }

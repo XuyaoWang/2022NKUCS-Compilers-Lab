@@ -13,6 +13,41 @@ class BasicBlock;
 class Instruction;
 class IRBuilder;
 
+
+// ----------{comment begin for generating intermediate code}--------------
+//
+// Compared with the last lab(in 2022 compiler lab is lab4), this lab
+// add six modules,including BasicBlock,Function,Instruction,IRBuilder,
+// Operand and Unit.
+// How to understand the usage of these modules?
+// The main function is realized by modules except IRBuilder.In my understanding,
+// IRBuilder is a handle which simplifies our coding.IRBuilder contains two members
+// which are Unit and BasicBlock. The member that is Unit is the entry of generating
+// intermediate code and the other member is a pointer pointing to an entity (may not
+// be the first entity of BasicBlock), which is used to insert new code block.
+// The rest part is the core section to generate intermediate code. I think the relation
+// in these module are as follows:
+// * Think of all intermediate code as a set,Instruction is the basic element of the set.
+// * Instruction is composed of Type and Operand
+// * BasicBlock is the set of Instruction,each element is linked by double linked chain,and all
+//   elements are pointer to a BasicBlock
+// * Function is the set of BasicBlock,the form of elements is similar to set BasicBloc.
+//   A single BasicBlock is also seen as a Function.(obviously)
+// * Unit is the set of Function,the form is as above.
+//
+// read main.cpp,the order of this lab is
+// 1. lexical analysis
+// 2. syntax analysis(optional:generate syntax tree)
+// 3. type check
+// 4. generate intermediate code(from button to top,from Instruction to BasicBloc to
+//    Function to Unit)
+// plus:the order of generate is from button to top,but in the process of implementing
+//      the function is a recursion.From top check if subtree has generated intermediate
+//      code.If yes,backtrace; If no, go more deeply.
+//
+// ----------{comment begin for generating intermediate code}--------------
+
+
 class Node
 {
 private:
@@ -24,6 +59,8 @@ private:
 protected:
     std::vector<Instruction*> true_list;
     std::vector<Instruction*> false_list;
+
+    // builder is a handle to generate IR
     static IRBuilder *builder;
     void backPatch(std::vector<Instruction*> &list, BasicBlock*bb);
     std::vector<Instruction*> merge(std::vector<Instruction*> &list1, std::vector<Instruction*> &list2);
@@ -77,6 +114,8 @@ public:
     enum {ADD, SUB, NOT};
     UnaryExpr(SymbolEntry *se, int op, ExprNode*expr) : ExprNode(se), op(op), expr(expr){};
     void output(int level);
+    void typeCheck();
+    void genCode();
 };
 
 class CallExpr : public ExprNode{
@@ -88,6 +127,8 @@ public:
              ExprNode* params= nullptr):
              ExprNode(se),params(params){};
     void output(int level);
+    void typeCheck();
+    void genCode();
 };
 
 class FuncRParamExpr : public ExprNode{
@@ -196,6 +237,17 @@ public:
     void genCode();
 };
 
+class WhileStmt:public StmtNode{
+private:
+    ExprNode* cond;
+    StmtNode* stmt;
+public:
+    WhileStmt(ExprNode*cond,StmtNode*stmt):cond(cond),stmt(stmt){}
+    void output(int level);
+    void typeCheck();
+    void genCode();
+};
+
 class ReturnStmt : public StmtNode
 {
 private:
@@ -250,8 +302,7 @@ private:
 public:
     Ast() {root = nullptr;}
     void setRoot(Node*n) {root = n;}
-    void output();
-    void typeCheck();
+    oid output();    void typeCheck();
     void genCode(Unit *unit);
 };
 

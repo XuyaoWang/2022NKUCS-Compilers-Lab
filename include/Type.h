@@ -61,6 +61,7 @@ private:
 public:
     FunctionType(Type* returnType, std::vector<SymbolEntry*> paramsSymbolEntry) :
     Type(Type::FUNC), returnType(returnType), paramsSymbolEntry(paramsSymbolEntry){};
+    Type* getRetType() {return returnType;};
     std::string toStr();
 };
 

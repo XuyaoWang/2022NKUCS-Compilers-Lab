@@ -5,22 +5,34 @@
 extern FILE* yyout;
 
 // insert the instruction to the front of the basicblock.
+// BasicBlock
+//     |
+//     |
+//    head<--->inst<--->......<--->head
 void BasicBlock::insertFront(Instruction *inst)
 {
     insertBefore(inst, head->getNext());
 }
 
 // insert the instruction to the back of the basicblock.
+// BasicBlock
+//     |
+//     |
+//    head<--->......<--->inst<--->head
 void BasicBlock::insertBack(Instruction *inst) 
 {
     insertBefore(inst, head);
 }
 
 // insert the instruction dst before src.
+// src->prev <---> dst <---> src <---> src->next
 void BasicBlock::insertBefore(Instruction *dst, Instruction *src)
 {
     // Todo
-
+    dst->setNext(src);
+    dst->setPrev(src->getPrev());
+    src->getPrev()->setNext(dst);
+    src->setPrev(dst);
     dst->setParent(this);
 }
 
