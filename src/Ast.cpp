@@ -74,12 +74,19 @@ void BinaryExpr::genCode()
     else if(op == OR)
     {
         // Todo
+        BasicBlock* trueBB = new BasicBlock(func);
+        expr1->genCode();
+        backPatch(expr1->falseList(), trueBB);
+        builder->setInsertBB(trueBB);
+        expr2->genCode();
+        true_list = merge(expr1->trueList(), expr2->trueList());
+        false_list = expr2->falseList();
     }
     else if(op >= LESS && op <= GREATER)
     {
         // Todo
     }
-    else if(op >= ADD && op <= SUB)
+    else if(op >= ADD && op <= MOD)
     {
         expr1->genCode();
         expr2->genCode();
@@ -93,6 +100,15 @@ void BinaryExpr::genCode()
             break;
         case SUB:
             opcode = BinaryInstruction::SUB;
+            break;
+        case MUL:
+            opcode = BinaryInstruction::MUL;
+            break;
+        case DIV:
+            opcode = BinaryInstruction::DIV;
+            break;
+        case MOD:
+            opcode = BinaryInstruction::MOD;
             break;
         }
         new BinaryInstruction(opcode, dst, src1, src2, bb);
@@ -194,6 +210,35 @@ void AssignStmt::genCode()
     new StoreInstruction(addr, src, bb);
 }
 
+void UnaryExpr::genCode() {
+
+}
+
+void DeclStmts::genCode() {
+    for (long unsigned int i = 0; i < declStmts.size(); ++i) {
+        StmtNode *declStmt=declStmts.front();
+        declStmts.pop();
+        dynamic_cast<DeclStmt*>(declStmt)->genCode();
+        declStmts.push(declStmt);
+    }
+}
+
+void WhileStmt::genCode() {
+
+}
+
+void FuncRParamExpr::genCode() {
+
+}
+
+void CallExpr::genCode() {
+
+}
+
+void ExprStmt::genCode() {
+
+}
+
 void Ast::typeCheck()
 {
     if(root != nullptr)
@@ -203,6 +248,8 @@ void Ast::typeCheck()
 void FunctionDef::typeCheck()
 {
     // Todo
+
+
 }
 
 void BinaryExpr::typeCheck()
@@ -221,31 +268,71 @@ void BinaryExpr::typeCheck()
 void Constant::typeCheck()
 {
     // Todo
+    return;
 }
 
 void Id::typeCheck()
 {
     // Todo
+    return;
 }
 
 void IfStmt::typeCheck()
 {
     // Todo
+    if(!this->cond) {
+        fprintf(stderr, "no cond expr in IfStmt");
+        exit(EXIT_FAILURE);
+    }
+    if(!this->thenStmt){
+        fprintf(stderr, "no then stmt in IfStmt");
+        exit(EXIT_FAILURE);
+    }
+    cond->typeCheck();
+    thenStmt->typeCheck();
 }
 
-void IfElseStmt::typeCheck()
-{
+void IfElseStmt::typeCheck(){
     // Todo
+    if(!this->cond) {
+        fprintf(stderr, "no cond expr in IfStmt");
+        exit(EXIT_FAILURE);
+    }
+    if(!this->thenStmt){
+        fprintf(stderr, "no then stmt in IfStmt");
+        exit(EXIT_FAILURE);
+    }
+    if(!this->elseStmt){
+        fprintf(stderr, "no else stmt in IfStmt");
+        exit(EXIT_FAILURE);
+    }
+    cond->typeCheck();
+    thenStmt->typeCheck();
+    elseStmt->typeCheck();
 }
 
-void CompoundStmt::typeCheck()
-{
+void CompoundStmt::typeCheck(){
     // Todo
+    if(!stmt){
+        fprintf(stderr, "no stmt in CompoundStmt");
+        exit(EXIT_FAILURE);
+    }
+    stmt->typeCheck();
 }
 
 void SeqNode::typeCheck()
 {
     // Todo
+    if(!this->stmt1){
+        fprintf(stderr, "no stmt1 in SeqNode");
+        exit(EXIT_FAILURE);
+    }
+    if(!this->stmt2){
+        fprintf(stderr, "no stmt2 in SeqNode");
+        exit(EXIT_FAILURE);
+    }
+    stmt1->typeCheck();
+    stmt2->typeCheck();
 }
 
 void DeclStmt::typeCheck()
@@ -261,6 +348,39 @@ void ReturnStmt::typeCheck()
 void AssignStmt::typeCheck()
 {
     // Todo
+}
+
+void UnaryExpr::typeCheck() {
+
+}
+
+void DeclStmts::typeCheck() {
+    if(declStmts.empty()){
+        fprintf(stderr, "no declStmt in DeclStmts");
+        exit(EXIT_FAILURE);
+    }
+    for (long unsigned int i = 0; i < declStmts.size(); ++i) {
+        StmtNode *declStmt=declStmts.front();
+        declStmts.pop();
+        dynamic_cast<DeclStmt*>(declStmt)->typeCheck();
+        declStmts.push(declStmt);
+    }
+}
+
+void WhileStmt::typeCheck() {
+
+}
+
+void FuncRParamExpr::typeCheck() {
+
+}
+
+void CallExpr::typeCheck() {
+
+}
+
+void ExprStmt::typeCheck() {
+
 }
 
 void BinaryExpr::output(int level)
@@ -337,14 +457,6 @@ void UnaryExpr::output(int level)
     }
     fprintf(yyout, "%*cUnaryExpr\top: %s\n", level, ' ', op_str.c_str());
     expr->output(level + 4);
-}
-
-void UnaryExpr::typeCheck() {
-
-}
-
-void UnaryExpr::genCode() {
-
 }
 
 void Constant::output(int level)
@@ -465,26 +577,10 @@ std::vector<SymbolEntry *> DeclStmts::getId() {
     return symbolEntry;
 }
 
-void DeclStmts::typeCheck() {
-
-}
-
-void DeclStmts::genCode() {
-
-}
-
 void WhileStmt::output(int level) {
     fprintf(yyout, "%*cWhileStmt\n", level, ' ');
     cond->output(level + 4);
     stmt->output(level + 4);
-}
-
-void WhileStmt::typeCheck() {
-
-}
-
-void WhileStmt::genCode() {
-
 }
 
 SymbolEntry *ExprNode::getSymbolEntry() const {
@@ -503,14 +599,6 @@ void FuncRParamExpr::insertParam(ExprNode *Exp) {
     params.push_back(Exp);
 }
 
-void FuncRParamExpr::typeCheck() {
-
-}
-
-void FuncRParamExpr::genCode() {
-
-}
-
 void CallExpr::output(int level) {
     std::string name, type;
     int scope;
@@ -523,22 +611,8 @@ void CallExpr::output(int level) {
         params->output(level+4);
 }
 
-void CallExpr::typeCheck() {
-
-}
-
-void CallExpr::genCode() {
-
-}
-
 void ExprStmt::output(int level) {
     expr->output(level);
 }
 
-void ExprStmt::typeCheck() {
 
-}
-
-void ExprStmt::genCode() {
-
-}

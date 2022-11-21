@@ -302,7 +302,8 @@ private:
 public:
     Ast() {root = nullptr;}
     void setRoot(Node*n) {root = n;}
-    oid output();    void typeCheck();
+    void output();
+    void typeCheck();
     void genCode(Unit *unit);
 };
 
