@@ -290,6 +290,7 @@ void IfStmt::typeCheck()
     }
     cond->typeCheck();
     thenStmt->typeCheck();
+    this->setNodeType(thenStmt->getNodeType());
 }
 
 void IfElseStmt::typeCheck(){

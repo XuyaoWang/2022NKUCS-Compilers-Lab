@@ -56,6 +56,11 @@ private:
 
     // seq is used to record the sequence that was created
     int seq;
+
+    // For exprNode,nodeType is the type of corresponding expression
+    // For stmtNode,if it's descendants contain ReturnStmt,it's nodeType is
+    // corresponding type.Otherwise, it's type is nullptr
+    Type*nodeType;
 protected:
     std::vector<Instruction*> true_list;
     std::vector<Instruction*> false_list;
@@ -68,6 +73,9 @@ protected:
 public:
     Node();
     int getSeq() const {return seq;};
+
+    Type*getNodeType();
+    void setNodeType(Type* nodeType);
 
     // level is used to control the form of output,
     // which determines how may space will be printed on outfile
