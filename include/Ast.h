@@ -56,11 +56,6 @@ private:
 
     // seq is used to record the sequence that was created
     int seq;
-
-    // For exprNode,nodeType is the type of corresponding expression
-    // For stmtNode,if it's descendants contain ReturnStmt,it's nodeType is
-    // corresponding type.Otherwise, it's type is nullptr
-    Type*nodeType;
 protected:
     std::vector<Instruction*> true_list;
     std::vector<Instruction*> false_list;
@@ -70,12 +65,10 @@ protected:
     void backPatch(std::vector<Instruction*> &list, BasicBlock*bb);
     std::vector<Instruction*> merge(std::vector<Instruction*> &list1, std::vector<Instruction*> &list2);
 
+    static void typeCheck(Type*type1,Type*type2);
 public:
     Node();
     int getSeq() const {return seq;};
-
-    Type*getNodeType();
-    void setNodeType(Type* nodeType);
 
     // level is used to control the form of output,
     // which determines how may space will be printed on outfile
@@ -170,7 +163,16 @@ public:
 };
 
 class StmtNode : public Node
-{};
+{
+private:
+    // For exprNode,nodeType is the type of corresponding expression
+    // For stmtNode,if it's descendants contain ReturnStmt,it's nodeType is
+    // corresponding type.Otherwise, it's type is nullptr
+    Type*nodeType= nullptr;
+public:
+    Type*getNodeType();
+    void setNodeType(Type* nodeType);
+};
 
 class CompoundStmt : public StmtNode
 {

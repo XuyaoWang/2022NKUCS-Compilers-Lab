@@ -263,6 +263,7 @@ void BinaryExpr::typeCheck()
         exit(EXIT_FAILURE);
     }
     symbolEntry->setType(type1);
+
 }
 
 void Constant::typeCheck()
@@ -310,6 +311,26 @@ void IfElseStmt::typeCheck(){
     cond->typeCheck();
     thenStmt->typeCheck();
     elseStmt->typeCheck();
+
+    Type*type1=thenStmt->getNodeType();
+    Type*type2=elseStmt->getNodeType();
+    if (type1== nullptr){
+        this->setNodeType(type2);
+    }else if(type2== nullptr){
+        this->setNodeType(type1);
+    }else{
+        if (type1==type2){
+            this->setNodeType(type1);
+        }else{
+            if((type1->isFloat()&&type2->isInt())||
+                    (type1->isInt()&&type2->isFloat())){
+                this->setNodeType(type1->isFloat()?type1:type2);
+            }else{
+                fprintf(stderr, "type %s and %s mismatch in line xx",type1->toStr().c_str(), type2->toStr().c_str());
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
 }
 
 void CompoundStmt::typeCheck(){
@@ -319,6 +340,7 @@ void CompoundStmt::typeCheck(){
         exit(EXIT_FAILURE);
     }
     stmt->typeCheck();
+    this->setNodeType(stmt->getNodeType());
 }
 
 void SeqNode::typeCheck()
@@ -334,6 +356,27 @@ void SeqNode::typeCheck()
     }
     stmt1->typeCheck();
     stmt2->typeCheck();
+
+    Type*type1=stmt1->getNodeType();
+    Type*type2=stmt2->getNodeType();
+
+    if (type1== nullptr){
+        this->setNodeType(type2);
+    }else if(type2== nullptr){
+        this->setNodeType(type1);
+    }else{
+        if (type1==type2){
+            this->setNodeType(type1);
+        }else{
+            if((type1->isFloat()&&type2->isInt())||
+               (type1->isInt()&&type2->isFloat())){
+                this->setNodeType(type1->isFloat()?type1:type2);
+            }else{
+                fprintf(stderr, "type %s and %s mismatch in line xx",type1->toStr().c_str(), type2->toStr().c_str());
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
 }
 
 void DeclStmt::typeCheck()
@@ -344,15 +387,29 @@ void DeclStmt::typeCheck()
 void ReturnStmt::typeCheck()
 {
     // Todo
+    if (retValue== nullptr)
+        return;
+    this->setNodeType(retValue->getSymPtr()->getType());
 }
 
 void AssignStmt::typeCheck()
 {
     // Todo
+    if (lval== nullptr){
+        // throw errors
+    }
+    if (expr== nullptr){
+        //throw errors
+    }
+    Type*type1=lval->getSymPtr()->getType();
+    Type*type2=expr->getSymPtr()->getType();
+
 }
 
 void UnaryExpr::typeCheck() {
-
+    if (expr== nullptr){
+        // throw errors
+    }
 }
 
 void DeclStmts::typeCheck() {
@@ -369,19 +426,30 @@ void DeclStmts::typeCheck() {
 }
 
 void WhileStmt::typeCheck() {
-
+    if (cond== nullptr){
+        fprintf(stderr, "no cond in WhileStmt");
+        exit(EXIT_FAILURE);
+    }
+    if (stmt== nullptr){
+        fprintf(stderr, "no stmt in WhileStmt");
+        exit(EXIT_FAILURE);
+    }
+    this->setNodeType(stmt->getNodeType());
 }
 
 void FuncRParamExpr::typeCheck() {
+    // TODO:check if RParams match corresponding FParams
 
 }
 
 void CallExpr::typeCheck() {
-
+    if (params!= nullptr)
+        params->typeCheck();
 }
 
 void ExprStmt::typeCheck() {
-
+    if (expr!= nullptr)
+        expr->typeCheck();
 }
 
 void BinaryExpr::output(int level)
