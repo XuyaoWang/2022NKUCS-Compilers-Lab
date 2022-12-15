@@ -86,7 +86,7 @@ LVal
         if(se == nullptr){
             fprintf(stderr, "identifier \"%s\" is undefined\n", (char*)$1);
             delete [](char*)$1;
-            assert(se != nullptr);
+            exit(EXIT_FAILURE);
         }
 
         $$ = new Id(se);
@@ -189,7 +189,7 @@ UnaryExp
         se = identifiers->lookup($1);
         if (se == nullptr){
             fprintf(stderr, "function \"%s\" is undefined\n", (char*)$1);
-            assert(se!=nullptr);
+            exit(EXIT_FAILURE);
         }
 
         $$ = new CallExpr(se, $3);
@@ -373,7 +373,7 @@ ConstDef
         se=identifiers->find($1);
         if (se != nullptr){
             fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
-            assert(se == nullptr);
+            exit(EXIT_FAILURE);
         }
 
 
@@ -397,7 +397,7 @@ ConstDef
     se=identifiers->find($1);
     if (se != nullptr){
     	fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
-        assert(se == nullptr);
+        exit(EXIT_FAILURE);
     }
 
     }
@@ -479,7 +479,7 @@ VarDef
         se=identifiers->find($1);
         if (se != nullptr){
             fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
-            assert(se == nullptr);
+            exit(EXIT_FAILURE);
         }
 
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
@@ -493,7 +493,7 @@ VarDef
         se=identifiers->find($1);
         if (se != nullptr){
             fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
-            assert(se == nullptr);
+            exit(EXIT_FAILURE);
         }
 
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
@@ -507,7 +507,7 @@ VarDef
         se=identifiers->find($1);
         if (se != nullptr){
             fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
-            assert(se == nullptr);
+            exit(EXIT_FAILURE);
         }
 
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
@@ -531,7 +531,7 @@ VarDef
         se=identifiers->find($1);
         if (se != nullptr){
             fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
-            assert(se == nullptr);
+            exit(EXIT_FAILURE);
         }
     }
     ;
@@ -556,18 +556,10 @@ InitValList
 FuncDef
     :
     Type ID {
-    	SymbolEntry *se;
-        se = identifiers->lookup($2);
-        if (se != nullptr){
-            fprintf(stderr, "function \"%s\" is already defined\n", (char*)$2);
-            assert(se == nullptr);
-        }
         if(identifiers->getLevel()!=0){
-            fprintf(stderr, "function \"%s\" isn't defined in global\n", (char*)$2);
-            assert(false);
+            fprintf(stderr, "function \"%s\" isn't defined in global scope\n", (char*)$2);
+            exit(EXIT_FAILURE);
         }
-
-
         // this symble table is used to store params
         identifiers = new SymbolTable(identifiers);
     }
@@ -580,7 +572,37 @@ FuncDef
             paramsSymbolEntry=temp->getId();
         }
         funcType = new FunctionType($1, paramsSymbolEntry);
-        SymbolEntry* se = new IdentifierSymbolEntry(
+
+	SymbolEntry *se;
+        se = identifiers->lookup($2);
+        if (se != nullptr){
+	    FunctionType *functionType =dynamic_cast<FunctionType*>(se->getType());
+            if(functionType->getRetType()->getKind()
+            	!=$1->getKind()){
+            	fprintf(stderr, "function \"%s\" is already defined\n", (char*)$2);
+                exit(EXIT_FAILURE);
+            }
+
+            std::vector<SymbolEntry*> symbolEntrys=functionType->getParamsSymbolEntry();
+            if(symbolEntrys.size()==paramsSymbolEntry.size()){
+            	bool isFuncOverload=false;
+            	for(auto i=0;i<symbolEntrys.size();i++){
+            	    if(symbolEntrys[i]->getType()->getKind()!=
+            	    	paramsSymbolEntry[i]->getType()->getKind()){
+            	    	isFuncOverload=true;
+            	        break;
+            	    }
+            	}
+            	if(!isFuncOverload){
+            	    fprintf(stderr, "function \"%s\" is already defined\n", (char*)$2);
+                    exit(EXIT_FAILURE);
+            	}
+            }
+        }
+
+
+
+        se = new IdentifierSymbolEntry(
                     funcType, $2, identifiers->getPrev()->getLevel());
         identifiers->getPrev()->install($2, se);
     } RPAREN
@@ -624,7 +646,7 @@ FuncFParam
       	se=identifiers->find($2);
       	if (se != nullptr){
 	    fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$2);
-      	    assert(se == nullptr);
+      	    exit(EXIT_FAILURE);
       	}
 
       	se = new IdentifierSymbolEntry($1, $2, identifiers->getLevel());
@@ -638,7 +660,7 @@ FuncFParam
     	se=identifiers->find($2);
       	if (se != nullptr){
 	    fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$2);
-      	    assert(se == nullptr);
+      	    exit(EXIT_FAILURE);
       	}
     }
     ;

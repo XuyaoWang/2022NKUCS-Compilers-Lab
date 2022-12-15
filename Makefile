@@ -1,8 +1,9 @@
 SRC_PATH ?= src
 INC_PATH += include
 BUILD_PATH ?= build
-#TEST_PATH ?= test/level1-1
+#TEST_PATH ?= test/lab6
 TEST_PATH ?= test/WaitToBeImplemented
+#TEST_PATH ?= test/success/typeCheck
 OBJ_PATH ?= $(BUILD_PATH)/obj
 BINARY ?= $(BUILD_PATH)/compiler
 SYSLIB_PATH ?= sysyruntimelibrary

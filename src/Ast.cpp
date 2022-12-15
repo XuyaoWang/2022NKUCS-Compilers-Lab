@@ -10,6 +10,45 @@ extern FILE *yyout;
 int Node::counter = 0;
 IRBuilder* Node::builder = nullptr;
 
+void exprTypeCheck(Type *fType1, Type *fType2){
+    if (fType1== nullptr||fType2== nullptr){
+        fprintf(stderr, "expr type can't be nullptr\n");
+        exit(EXIT_FAILURE);
+    }
+
+    Type*type1;
+    Type*type2;
+
+    if (fType1->isFunc()){
+        FunctionType*type=dynamic_cast<FunctionType*>(fType1);
+        type1=type->getRetType();
+    } else{
+        type1=fType1;
+    }
+
+    if (fType2->isFunc()){
+        FunctionType*type=dynamic_cast<FunctionType*>(fType2);
+        type2=type->getRetType();
+    } else{
+        type2=fType2;
+    }
+
+    if (type1->isVoid()||type2->isVoid()){
+        fprintf(stderr, "the operand's type cannot be void\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (type1->getKind()==type2->getKind()){
+        return;
+    }
+    if((type1->isFloat()&&type2->isInt())||
+       (type1->isInt()&&type2->isFloat())){
+        return;
+    }
+    fprintf(stderr, "type %s and %s mismatch in line xx\n",type1->toStr().c_str(), type2->toStr().c_str());
+    exit(EXIT_FAILURE);
+}
+
 Node::Node()
 {
     seq = counter++;
@@ -42,18 +81,6 @@ void StmtNode::setNodeType(Type *nodeType) {
 }
 
 void StmtNode::stmtTypeCheck(Type *fType1, Type *fType2) {
-    if (nullptr==fType1&& nullptr==fType2){
-        this->setNodeType(nullptr);
-        return;
-    }
-    if (fType1== nullptr){
-        this->setNodeType(fType2);
-        return;
-    }
-    if(fType2== nullptr){
-        this->setNodeType(fType1);
-        return;
-    }
     Type*type1;
     Type*type2;
 
@@ -70,6 +97,15 @@ void StmtNode::stmtTypeCheck(Type *fType1, Type *fType2) {
         type2=type->getRetType();
     } else{
         type2=fType2;
+    }
+
+    if (type1->isVoid()){
+        this->setNodeType(type2);
+        return;
+    }
+    if (type2->isVoid()){
+        this->setNodeType(type1);
+        return;
     }
 
     if (type1->getKind()==type2->getKind()){
@@ -260,7 +296,8 @@ void IfElseStmt::genCode()
 
 void CompoundStmt::genCode()
 {
-    stmt->genCode();
+    if (stmt!= nullptr)
+        stmt->genCode();
 }
 
 void SeqNode::genCode()
@@ -415,12 +452,26 @@ void FunctionDef::typeCheck()
     Type *type1=se->getType();
     Type *type2=stmt->getNodeType();
 
-    this->stmtTypeCheck(type1,type2);
+    if (type1->isFunc()){
+        type1=dynamic_cast<FunctionType*>(type1)->getRetType();
+    }
+    if (type2->isFunc()){
+        type2=dynamic_cast<FunctionType*>(type2)->getRetType();
+    }
+    if (type1->getKind()==type2->getKind()){
+        return;
+    }
+    if((type1->isFloat()&&type2->isInt())||
+       (type1->isInt()&&type2->isFloat())){
+        return;
+    }
+    fprintf(stderr, "The return value's type %s and the function %s's type %s do not match\n",
+            type2->toStr().c_str(),se->toStr().c_str(), type1->toStr().c_str());
+    exit(EXIT_FAILURE);
 }
 
 void BinaryExpr::typeCheck()
 {
-    // Todo
     if (nullptr==expr1){
         fprintf(stderr, "no expr1 in BinaryExpr\n");
         exit(EXIT_FAILURE);
@@ -429,20 +480,12 @@ void BinaryExpr::typeCheck()
         fprintf(stderr, "no expr2 in BinaryExpr\n");
         exit(EXIT_FAILURE);
     }
+    expr1->typeCheck();
+    expr2->typeCheck();
 
-    Type *type1 = expr1->getSymPtr()->getType();
-    Type *type2 = expr2->getSymPtr()->getType();
-    if(type1->getKind() == type2->getKind()){
-        symbolEntry->setType(type1);
-        return;
-    }
-    if ((type1->isInt()&&type2->isFloat())||
-        (type2->isInt()&&type1->isFloat())){
-        symbolEntry->setType(type1->isFloat()?type1:type2);
-        return;
-    }
-    fprintf(stderr, "type %s and %s mismatch in line xx\n",type1->toStr().c_str(), type2->toStr().c_str());
-    exit(EXIT_FAILURE);
+    Type *type1 = expr1->getSymbolEntry()->getType();
+    Type *type2 = expr2->getSymbolEntry()->getType();
+    exprTypeCheck(type1,type2);
 }
 
 void Constant::typeCheck(){
@@ -507,12 +550,12 @@ void IfElseStmt::typeCheck(){
 
     Type*type1=thenStmt->getNodeType();
     Type*type2=elseStmt->getNodeType();
+
     this->stmtTypeCheck(type1,type2);
 }
 
 void CompoundStmt::typeCheck(){
     if(!stmt){
-        this->setNodeType(nullptr);
         return;
     }
     stmt->typeCheck();
@@ -546,23 +589,24 @@ void DeclStmt::typeCheck()
 {
     if (nullptr==expr){
         id->typeCheck();
-        this->setNodeType(id->getSymbolEntry()->getType());
         return;
     }
+    expr->typeCheck();
 
     Type*type1=id->getSymbolEntry()->getType();
     Type*type2=expr->getSymbolEntry()->getType();
-    this->stmtTypeCheck(type1,type2);
+    exprTypeCheck(type1,type2);
 }
 
 void ReturnStmt::typeCheck()
 {
     // Todo
     if (nullptr == retValue){
-        this->setNodeType(new VoidType());
+        // The default value of nodeType is VoidType()
         return;
     }
-    this->setNodeType(retValue->getSymPtr()->getType());
+    retValue->typeCheck();
+    this->setNodeType(retValue->getSymbolEntry()->getType());
 }
 
 void AssignStmt::typeCheck()
@@ -576,10 +620,12 @@ void AssignStmt::typeCheck()
         fprintf(stderr, "no expr in AssignStmt\n");
         exit(EXIT_FAILURE);
     }
+    lval->typeCheck();
+    expr->typeCheck();
 
-    Type*type1=lval->getSymPtr()->getType();
-    Type*type2=expr->getSymPtr()->getType();
-    this->stmtTypeCheck(type1,type2);
+    Type*type1=lval->getSymbolEntry()->getType();
+    Type*type2=expr->getSymbolEntry()->getType();
+    exprTypeCheck(type1,type2);
 }
 
 void UnaryExpr::typeCheck() {
@@ -587,6 +633,7 @@ void UnaryExpr::typeCheck() {
         fprintf(stderr, "no expr in UnaryExpr\n");
         exit(EXIT_FAILURE);
     }
+    expr->typeCheck();
     return;
 }
 
@@ -608,6 +655,7 @@ void WhileStmt::typeCheck() {
         fprintf(stderr, "no cond in WhileStmt\n");
         exit(EXIT_FAILURE);
     }
+    cond->typeCheck();
     Type*condType=cond->getSymbolEntry()->getType();
     if (!condType->isInt()){
         fprintf(stderr, "the result of conditional operation isn't int type in WhileStmt\n");
@@ -618,15 +666,18 @@ void WhileStmt::typeCheck() {
         fprintf(stderr, "no stmt in WhileStmt\n");
         exit(EXIT_FAILURE);
     }
+    stmt->typeCheck();
     this->setNodeType(stmt->getNodeType());
 }
 
 void FuncRParamExpr::typeCheck() {
+    for (auto i = 0; i < params.size(); ++i) {
+        params[i]->typeCheck();
+    }
     return;
 }
 
 void CallExpr::typeCheck() {
-    printf("f\n");
     FunctionType*functionType=dynamic_cast<FunctionType*>(symbolEntry->getType());
     std::vector<SymbolEntry*>fParams=functionType->getParamsSymbolEntry();
 
@@ -639,13 +690,12 @@ void CallExpr::typeCheck() {
 
     // sysy doesn't support FParams to have default values
     // Such a nice features for developer
-    printf("%d %d\n",rParams.size(),fParams.size());
     if (rParams.size()!=fParams.size()){
         fprintf(stderr, "The number of RParams and LParams doesn't match, "
-                        "RParams is %s and LParams is %s.\n",rParams.size(),fParams.size());
+                        "RParams is %ld and LParams is %ld.\n",rParams.size(),fParams.size());
         exit(EXIT_FAILURE);
     }
-    for (int i = 0; i < rParams.size(); ++i) {
+    for (auto i = 0; i < rParams.size(); ++i) {
         Type*type1=rParams[i]->getType();
         Type*type2=fParams[i]->getType();
         if (type1->getKind()==type2->getKind()){
@@ -657,7 +707,7 @@ void CallExpr::typeCheck() {
         if (type2->isInt()&&type1->isFloat()){
             continue;
         }
-        fprintf(stderr, "rParam doesn't match fParam."
+        fprintf(stderr, "a rParam doesn't match fParam."
                         "rParam is %s and fParam is %s.\n",type1->toStr().c_str(), type2->toStr().c_str());
         exit(EXIT_FAILURE);
     }

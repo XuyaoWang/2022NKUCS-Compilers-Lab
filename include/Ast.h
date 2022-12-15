@@ -5,6 +5,7 @@
 #include <queue>
 #include <iostream>
 #include "Operand.h"
+#include "Type.h"
 
 class SymbolEntry;
 class Unit;
@@ -38,7 +39,7 @@ class IRBuilder;
 // read main.cpp,the order of this lab is
 // 1. lexical analysis
 // 2. syntax analysis(optional:generate syntax tree)
-// 3. type check
+// 3. typeCheck
 // 4. generate intermediate code(from button to top,from Instruction to BasicBlock to
 //    Function to Unit)
 // plus:the order of generate is from button to top,but in the process of implementing
@@ -47,6 +48,7 @@ class IRBuilder;
 //
 // ----------{comment end for generating intermediate code}--------------
 
+void exprTypeCheck(Type*,Type*);
 
 class Node
 {
@@ -170,7 +172,7 @@ private:
     // For exprNode,nodeType is the type of corresponding expression
     // For stmtNode,if it's descendants contain ReturnStmt,it's nodeType is
     // corresponding type.Otherwise, it's type is nullptr
-    Type*nodeType= nullptr;
+    Type*nodeType;
 
     int kind;
 protected:
@@ -182,7 +184,7 @@ public:
 
     int getKind() const {return kind;};
 
-    StmtNode(int kind=-1):kind(kind){};
+    StmtNode(int kind=-1):kind(kind){nodeType=new VoidType();};
 
     Type*getNodeType();
     void setNodeType(Type* nodeType);
