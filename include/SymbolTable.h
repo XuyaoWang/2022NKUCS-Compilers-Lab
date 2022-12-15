@@ -141,6 +141,7 @@ public:
     SymbolTable(SymbolTable *prev);
     void install(std::string name, SymbolEntry* entry);
     SymbolEntry* lookup(std::string name);
+    SymbolEntry* find(std::string name){return symbolTable.find(name)==symbolTable.end()? nullptr:symbolTable[name];};
     SymbolTable* getPrev() {return prev;};
     int getLevel() {return level;};
     static int getLabel() {return counter++;};

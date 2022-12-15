@@ -40,7 +40,7 @@ public:
 class FloatType : public Type
 {
 private:
-    float size;
+    int size;
 public:
     FloatType(float size) : Type(Type::FLOAT), size(size){};
     std::string toStr();
@@ -62,6 +62,7 @@ public:
     FunctionType(Type* returnType, std::vector<SymbolEntry*> paramsSymbolEntry) :
     Type(Type::FUNC), returnType(returnType), paramsSymbolEntry(paramsSymbolEntry){};
     Type* getRetType() {return returnType;};
+    std::vector<SymbolEntry*>getParamsSymbolEntry(){return paramsSymbolEntry;};
     std::string toStr();
 };
 

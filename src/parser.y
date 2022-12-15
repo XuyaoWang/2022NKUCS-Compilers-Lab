@@ -83,8 +83,7 @@ LVal
     : ID {
         SymbolEntry *se;
         se = identifiers->lookup($1);
-        if(se == nullptr)
-        {
+        if(se == nullptr){
             fprintf(stderr, "identifier \"%s\" is undefined\n", (char*)$1);
             delete [](char*)$1;
             assert(se != nullptr);
@@ -133,6 +132,10 @@ ReturnStmt
     :
     RETURN Exp SEMICOLON{
         $$ = new ReturnStmt($2);
+    }
+    |
+    RETURN SEMICOLON{
+        $$ = new ReturnStmt(nullptr);
     }
     ;
 Exp
@@ -186,6 +189,11 @@ UnaryExp
         se = identifiers->lookup($1);
         // TODO
         // check if function has been defined
+        if (se == nullptr){
+            fprintf(stderr, "function \"%s\" is undefined\n", (char*)$1);
+            assert(se!=nullptr);
+        }
+
         $$ = new CallExpr(se, $3);
     }
     ;
@@ -364,6 +372,13 @@ ConstDef
     :
     ID ASSIGN ConstInitVal{
         SymbolEntry *se;
+        se=identifiers->find($1);
+        if (se != nullptr){
+            fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
+            assert(se == nullptr);
+        }
+
+
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
 
         // TODO
@@ -379,7 +394,15 @@ ConstDef
         delete []$1;
     }
     |
-    ID BracketList ASSIGN ConstInitVal{}
+    ID BracketList ASSIGN ConstInitVal{
+    SymbolEntry *se;
+    se=identifiers->find($1);
+    if (se != nullptr){
+    	fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
+        assert(se == nullptr);
+    }
+
+    }
     ;
 
 BracketList
@@ -455,6 +478,12 @@ VarDef
     :
     ID{
         SymbolEntry *se;
+        se=identifiers->find($1);
+        if (se != nullptr){
+            fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
+            assert(se == nullptr);
+        }
+
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
         identifiers->install($1, se);
         $$ = new DeclStmt(new Id(se));
@@ -463,6 +492,12 @@ VarDef
     |
     ID BracketList {
         SymbolEntry *se;
+        se=identifiers->find($1);
+        if (se != nullptr){
+            fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
+            assert(se == nullptr);
+        }
+
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
         identifiers->install($1, se);
         $$ = new DeclStmt(new Id(se));
@@ -471,6 +506,12 @@ VarDef
     |
     ID ASSIGN InitVal{
         SymbolEntry *se;
+        se=identifiers->find($1);
+        if (se != nullptr){
+            fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
+            assert(se == nullptr);
+        }
+
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
 
         // std::cout<<"ID ASSIGN InitVal"<<std::endl;
@@ -487,7 +528,14 @@ VarDef
         delete []$1;
     }
     |
-    ID BracketList ASSIGN InitVal{}
+    ID BracketList ASSIGN InitVal{
+        SymbolEntry *se;
+        se=identifiers->find($1);
+        if (se != nullptr){
+            fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$1);
+            assert(se == nullptr);
+        }
+    }
     ;
 
 InitVal
@@ -510,9 +558,19 @@ InitValList
 FuncDef
     :
     Type ID {
+    	SymbolEntry *se;
+        se = identifiers->lookup($2);
+        if (se != nullptr){
+            fprintf(stderr, "function \"%s\" is already defined\n", (char*)$2);
+            assert(se == nullptr);
+        }
+        if(identifiers->getLevel()!=0){
+            fprintf(stderr, "function \"%s\" isn't defined in global\n", (char*)$2);
+            assert(false);
+        }
+
 
         // this symble table is used to store params
-
         identifiers = new SymbolTable(identifiers);
     }
     LPAREN FuncFParams{
@@ -565,13 +623,26 @@ FuncFParam
     :
     Type ID {
       	SymbolEntry *se;
+      	se=identifiers->find($2);
+      	if (se != nullptr){
+	    fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$2);
+      	    assert(se == nullptr);
+      	}
+
       	se = new IdentifierSymbolEntry($1, $2, identifiers->getLevel());
         identifiers->install($2, se);
         $$ = new DeclStmt(new Id(se));
         delete []$2;
     }
     |
-    Type ID FuncBracketList{}
+    Type ID FuncBracketList{
+    	SymbolEntry *se;
+    	se=identifiers->find($2);
+      	if (se != nullptr){
+	    fprintf(stderr, "variable \"%s\" is already declared\n", (char*)$2);
+      	    assert(se == nullptr);
+      	}
+    }
     ;
 
 

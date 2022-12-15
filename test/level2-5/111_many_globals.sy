@@ -1,4 +1,4 @@
-// Call a func with many params.
+// Call a func with many rParams.
 
 int a0;
 int a1;

@@ -148,6 +148,7 @@ void SymbolTable::install(std::string name, SymbolEntry* entry)
 }
 
 int SymbolTable::counter = 0;
+
 static SymbolTable t;
 SymbolTable *identifiers = &t;
 SymbolTable *globals = &t;

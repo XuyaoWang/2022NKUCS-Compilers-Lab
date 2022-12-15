@@ -33,6 +33,58 @@ std::vector<Instruction*> Node::merge(std::vector<Instruction*> &list1, std::vec
     return res;
 }
 
+Type *StmtNode::getNodeType() {
+    return this->nodeType;
+}
+
+void StmtNode::setNodeType(Type *nodeType) {
+    this->nodeType=nodeType;
+}
+
+void StmtNode::stmtTypeCheck(Type *fType1, Type *fType2) {
+    if (nullptr==fType1&& nullptr==fType2){
+        this->setNodeType(nullptr);
+        return;
+    }
+    if (fType1== nullptr){
+        this->setNodeType(fType2);
+        return;
+    }
+    if(fType2== nullptr){
+        this->setNodeType(fType1);
+        return;
+    }
+    Type*type1;
+    Type*type2;
+
+    // Type void is also a basic type.No need to transfer.
+    if (fType1->isFunc()){
+        FunctionType*type=dynamic_cast<FunctionType*>(fType1);
+        type1=type->getRetType();
+    } else{
+        type1=fType1;
+    }
+
+    if (fType2->isFunc()){
+        FunctionType*type=dynamic_cast<FunctionType*>(fType2);
+        type2=type->getRetType();
+    } else{
+        type2=fType2;
+    }
+
+    if (type1->getKind()==type2->getKind()){
+        this->setNodeType(type1);
+        return;
+    }
+    if((type1->isFloat()&&type2->isInt())||
+       (type1->isInt()&&type2->isFloat())){
+        this->setNodeType(type1->isFloat()?type1:type2);
+        return;
+    }
+    fprintf(stderr, "type %s and %s mismatch in line xx\n",type1->toStr().c_str(), type2->toStr().c_str());
+    exit(EXIT_FAILURE);
+}
+
 void Ast::genCode(Unit *unit)
 {
     IRBuilder *builder = new IRBuilder(unit);
@@ -48,12 +100,43 @@ void FunctionDef::genCode()
     // set the insert point to the entry basicblock of this function.
     builder->setInsertBB(entry);
 
+    if(nullptr!=decl){
+        decl->genCode();
+    }
+
     stmt->genCode();
 
     /**
      * Construct control flow graph. You need do set successors and predecessors for each basic block.
-     * Todo
     */
+
+    for (auto bb = func->begin(); bb != func->end(); bb++){
+        // get the last instruction of current block
+        Instruction *last = (*bb)->rbegin();
+        if (last->isCond()){
+            BasicBlock *trueBranch = ((CondBrInstruction *)last)->getTrueBranch();
+            BasicBlock *falseBranch = ((CondBrInstruction *)last)->getFalseBranch();
+            (*bb)->addSucc(trueBranch);
+            (*bb)->addSucc(falseBranch);
+            trueBranch->addPred(*bb);
+            falseBranch->addPred(*bb);
+        }
+        else if (last->isUncond()){
+            BasicBlock *branch = ((UncondBrInstruction *)last)->getBranch();
+            (*bb)->addSucc(branch);
+            branch->addPred(*bb);
+        }
+        else if (!last->isRet()){
+            // last instruction is not ret and doesn't have predecessors
+            // this means current function returns void or current function is main() function
+            if (((FunctionType *)func->getSymPtr()->getType())->getRetType() == TypeSystem::intType){
+                new RetInstruction(new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), (*bb));
+            }
+            else if (((FunctionType *)func->getSymPtr()->getType())->getRetType() == TypeSystem::voidType){
+                new RetInstruction(nullptr, (*bb));
+            }
+        }
+    }
    
 }
 
@@ -150,24 +233,46 @@ void IfStmt::genCode()
 
 void IfElseStmt::genCode()
 {
-    // Todo
+    Function* func;
+    BasicBlock *then_bb, *else_bb, *end_bb;
+
+    func = builder->getInsertBB()->getParent();
+    then_bb = new BasicBlock(func);
+    else_bb = new BasicBlock(func);
+    end_bb = new BasicBlock(func);
+
+    cond->genCode();
+    backPatch(cond->trueList(), then_bb);
+    backPatch(cond->falseList(), else_bb);
+
+    builder->setInsertBB(then_bb);
+    thenStmt->genCode();
+    then_bb = builder->getInsertBB();
+    new UncondBrInstruction(end_bb, then_bb);
+
+    builder->setInsertBB(else_bb);
+    elseStmt->genCode();
+    else_bb = builder->getInsertBB();
+    new UncondBrInstruction(end_bb, else_bb);
+
+    builder->setInsertBB(end_bb);
 }
 
 void CompoundStmt::genCode()
 {
-    // Todo
+    stmt->genCode();
 }
 
 void SeqNode::genCode()
 {
-    // Todo
+    stmt1->genCode();
+    stmt2->genCode();
 }
 
 void DeclStmt::genCode()
 {
     IdentifierSymbolEntry *se = dynamic_cast<IdentifierSymbolEntry *>(id->getSymPtr());
-    if(se->isGlobal())
-    {
+    if(se->isGlobal()){
         Operand *addr;
         SymbolEntry *addr_se;
         addr_se = new IdentifierSymbolEntry(*se);
@@ -175,8 +280,7 @@ void DeclStmt::genCode()
         addr = new Operand(addr_se);
         se->setAddr(addr);
     }
-    else if(se->isLocal())
-    {
+    else if(se->isLocal()||se->isParam()){
         Function *func = builder->getInsertBB()->getParent();
         BasicBlock *entry = func->getEntry();
         Instruction *alloca;
@@ -188,13 +292,31 @@ void DeclStmt::genCode()
         addr = new Operand(addr_se);
         alloca = new AllocaInstruction(addr, se);                   // allocate space for local id in function stack.
         entry->insertFront(alloca);                                 // allocate instructions should be inserted into the begin of the entry block.
+
+        if (se->isParam()){
+            BasicBlock* bb = builder->getInsertBB();
+            new StoreInstruction(addr, se->getAddr(), bb);
+        }
+
         se->setAddr(addr);                                          // set the addr operand in symbol entry so that we can use it in subsequent code generation.
+
+        if (nullptr!=expr){
+            expr->genCode();
+            BasicBlock* bb = builder->getInsertBB();
+            new StoreInstruction(addr, expr->getOperand(), bb);
+        }
     }
 }
 
 void ReturnStmt::genCode()
 {
-    // Todo
+    BasicBlock *bb = builder->getInsertBB();
+    Operand* src = nullptr;
+    if (nullptr!=retValue) {
+        retValue->genCode();
+        src = retValue->getOperand();
+    }
+    new RetInstruction(src, bb);
 }
 
 void AssignStmt::genCode()
@@ -211,7 +333,8 @@ void AssignStmt::genCode()
 }
 
 void UnaryExpr::genCode() {
-
+    //Todo
+    expr->genCode();
 }
 
 void DeclStmts::genCode() {
@@ -224,11 +347,35 @@ void DeclStmts::genCode() {
 }
 
 void WhileStmt::genCode() {
+    Function* func;
+    BasicBlock *cond_bb, *while_bb, *end_bb, *bb;
 
+    bb = builder->getInsertBB();
+    func = builder->getInsertBB()->getParent();
+
+    cond_bb = new BasicBlock(func);
+    while_bb = new BasicBlock(func);
+    end_bb = new BasicBlock(func);
+
+    new UncondBrInstruction(cond_bb, bb);
+
+    builder->setInsertBB(cond_bb);
+    cond->genCode();
+    backPatch(cond->trueList(), while_bb);
+    backPatch(cond->falseList(), end_bb);
+
+    builder->setInsertBB(while_bb);
+    stmt->genCode();
+    while_bb = builder->getInsertBB();
+    new UncondBrInstruction(cond_bb, while_bb);
+
+    builder->setInsertBB(end_bb);
 }
 
 void FuncRParamExpr::genCode() {
-
+    for(auto iter=params.begin();iter!=params.end();iter++){
+        (*iter)->genCode();
+    }
 }
 
 void CallExpr::genCode() {
@@ -236,7 +383,7 @@ void CallExpr::genCode() {
 }
 
 void ExprStmt::genCode() {
-
+    expr->genCode();
 }
 
 void Ast::typeCheck()
@@ -245,36 +392,76 @@ void Ast::typeCheck()
         root->typeCheck();
 }
 
+void ExprNode::typeCheck() {
+    return;
+}
+
 void FunctionDef::typeCheck()
 {
     // Todo
+    if (nullptr==se){
+        fprintf(stderr, "no se in FunctionDef\n");
+        exit(EXIT_FAILURE);
+    }
+    if (nullptr==stmt){
+        fprintf(stderr, "no stmt in FunctionDef\n");
+        exit(EXIT_FAILURE);
+    }
+    if (nullptr!=decl){
+        decl->typeCheck();
+    }
 
+    stmt->typeCheck();
 
+    Type *type1=se->getType();
+    Type *type2=stmt->getNodeType();
+
+    this->stmtTypeCheck(type1,type2);
+
+    this->setNodeType(type1);
 }
 
 void BinaryExpr::typeCheck()
 {
     // Todo
-    Type *type1 = expr1->getSymPtr()->getType();
-    Type *type2 = expr2->getSymPtr()->getType();
-    if(type1 != type2)
-    {
-        fprintf(stderr, "type %s and %s mismatch in line xx",type1->toStr().c_str(), type2->toStr().c_str());
+    if (nullptr==expr1){
+        fprintf(stderr, "no expr1 in BinaryExpr\n");
         exit(EXIT_FAILURE);
     }
-    symbolEntry->setType(type1);
+    if (nullptr==expr2){
+        fprintf(stderr, "no expr2 in BinaryExpr\n");
+        exit(EXIT_FAILURE);
+    }
 
+    Type *type1 = expr1->getSymPtr()->getType();
+    Type *type2 = expr2->getSymPtr()->getType();
+    if(type1->getKind() == type2->getKind()){
+        symbolEntry->setType(type1);
+        return;
+    }
+    if ((type1->isInt()&&type2->isFloat())||
+        (type2->isInt()&&type1->isFloat())){
+        symbolEntry->setType(type1->isFloat()?type1:type2);
+        return;
+    }
+    fprintf(stderr, "type %s and %s mismatch in line xx\n",type1->toStr().c_str(), type2->toStr().c_str());
+    exit(EXIT_FAILURE);
 }
 
-void Constant::typeCheck()
-{
+void Constant::typeCheck(){
     // Todo
+    if (nullptr==symbolEntry){
+        fprintf(stderr, "no symbolEntry in Constant\n");
+        exit(EXIT_FAILURE);
+    }
     return;
 }
 
-void Id::typeCheck()
-{
-    // Todo
+void Id::typeCheck(){
+    if (nullptr==symbolEntry){
+        fprintf(stderr, "no symbolEntry in Id\n");
+        exit(EXIT_FAILURE);
+    }
     return;
 }
 
@@ -282,62 +469,56 @@ void IfStmt::typeCheck()
 {
     // Todo
     if(!this->cond) {
-        fprintf(stderr, "no cond expr in IfStmt");
+        fprintf(stderr, "no cond expr in IfStmt\n");
         exit(EXIT_FAILURE);
     }
     if(!this->thenStmt){
-        fprintf(stderr, "no then stmt in IfStmt");
+        fprintf(stderr, "no then stmt in IfStmt\n");
         exit(EXIT_FAILURE);
     }
     cond->typeCheck();
+    Type*condType=cond->getSymbolEntry()->getType();
+    if (!condType->isInt()){
+        fprintf(stderr, "the result of conditional operation isn't int type in IfStmt\n");
+        exit(EXIT_FAILURE);
+    }
+
     thenStmt->typeCheck();
     this->setNodeType(thenStmt->getNodeType());
 }
 
 void IfElseStmt::typeCheck(){
-    // Todo
     if(!this->cond) {
-        fprintf(stderr, "no cond expr in IfStmt");
+        fprintf(stderr, "no cond expr in IfElseStmt\n");
         exit(EXIT_FAILURE);
     }
     if(!this->thenStmt){
-        fprintf(stderr, "no then stmt in IfStmt");
+        fprintf(stderr, "no then stmt in IfElseStmt\n");
         exit(EXIT_FAILURE);
     }
     if(!this->elseStmt){
-        fprintf(stderr, "no else stmt in IfStmt");
+        fprintf(stderr, "no else stmt in IfElseStmt\n");
         exit(EXIT_FAILURE);
     }
     cond->typeCheck();
+    Type*condType=cond->getSymbolEntry()->getType();
+    if (!condType->isInt()){
+        fprintf(stderr, "the result of conditional operation isn't int type in IfElseStmt\n");
+        exit(EXIT_FAILURE);
+    }
+
     thenStmt->typeCheck();
     elseStmt->typeCheck();
 
     Type*type1=thenStmt->getNodeType();
     Type*type2=elseStmt->getNodeType();
-    if (type1== nullptr){
-        this->setNodeType(type2);
-    }else if(type2== nullptr){
-        this->setNodeType(type1);
-    }else{
-        if (type1==type2){
-            this->setNodeType(type1);
-        }else{
-            if((type1->isFloat()&&type2->isInt())||
-                    (type1->isInt()&&type2->isFloat())){
-                this->setNodeType(type1->isFloat()?type1:type2);
-            }else{
-                fprintf(stderr, "type %s and %s mismatch in line xx",type1->toStr().c_str(), type2->toStr().c_str());
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
+    this->stmtTypeCheck(type1,type2);
 }
 
 void CompoundStmt::typeCheck(){
-    // Todo
     if(!stmt){
-        fprintf(stderr, "no stmt in CompoundStmt");
-        exit(EXIT_FAILURE);
+        this->setNodeType(nullptr);
+        return;
     }
     stmt->typeCheck();
     this->setNodeType(stmt->getNodeType());
@@ -345,76 +526,78 @@ void CompoundStmt::typeCheck(){
 
 void SeqNode::typeCheck()
 {
-    // Todo
     if(!this->stmt1){
-        fprintf(stderr, "no stmt1 in SeqNode");
+        fprintf(stderr, "no stmt1 in SeqNode\n");
         exit(EXIT_FAILURE);
     }
     if(!this->stmt2){
-        fprintf(stderr, "no stmt2 in SeqNode");
+        fprintf(stderr, "no stmt2 in SeqNode\n");
         exit(EXIT_FAILURE);
     }
     stmt1->typeCheck();
     stmt2->typeCheck();
 
+    if (stmt1->isFunctionDefStmt()&&stmt2->isFunctionDefStmt()){
+        return;
+    }
+
     Type*type1=stmt1->getNodeType();
     Type*type2=stmt2->getNodeType();
 
-    if (type1== nullptr){
-        this->setNodeType(type2);
-    }else if(type2== nullptr){
-        this->setNodeType(type1);
-    }else{
-        if (type1==type2){
-            this->setNodeType(type1);
-        }else{
-            if((type1->isFloat()&&type2->isInt())||
-               (type1->isInt()&&type2->isFloat())){
-                this->setNodeType(type1->isFloat()?type1:type2);
-            }else{
-                fprintf(stderr, "type %s and %s mismatch in line xx",type1->toStr().c_str(), type2->toStr().c_str());
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
+    this->stmtTypeCheck(type1,type2);
 }
 
 void DeclStmt::typeCheck()
 {
-    // Todo
+    if (nullptr==expr){
+        id->typeCheck();
+        this->setNodeType(id->getSymbolEntry()->getType());
+        return;
+    }
+
+    Type*type1=id->getSymbolEntry()->getType();
+    Type*type2=expr->getSymbolEntry()->getType();
+    this->stmtTypeCheck(type1,type2);
 }
 
 void ReturnStmt::typeCheck()
 {
     // Todo
-    if (retValue== nullptr)
+    if (nullptr == retValue){
+        this->setNodeType(new VoidType());
         return;
+    }
     this->setNodeType(retValue->getSymPtr()->getType());
 }
 
 void AssignStmt::typeCheck()
 {
     // Todo
-    if (lval== nullptr){
-        // throw errors
+    if (nullptr == lval){
+        fprintf(stderr, "no lval in AssignStmt\n");
+        exit(EXIT_FAILURE);
     }
-    if (expr== nullptr){
-        //throw errors
+    if (nullptr == expr){
+        fprintf(stderr, "no expr in AssignStmt\n");
+        exit(EXIT_FAILURE);
     }
+
     Type*type1=lval->getSymPtr()->getType();
     Type*type2=expr->getSymPtr()->getType();
-
+    this->stmtTypeCheck(type1,type2);
 }
 
 void UnaryExpr::typeCheck() {
     if (expr== nullptr){
-        // throw errors
+        fprintf(stderr, "no expr in UnaryExpr\n");
+        exit(EXIT_FAILURE);
     }
+    return;
 }
 
 void DeclStmts::typeCheck() {
     if(declStmts.empty()){
-        fprintf(stderr, "no declStmt in DeclStmts");
+        fprintf(stderr, "no declStmt in DeclStmts\n");
         exit(EXIT_FAILURE);
     }
     for (long unsigned int i = 0; i < declStmts.size(); ++i) {
@@ -426,30 +609,68 @@ void DeclStmts::typeCheck() {
 }
 
 void WhileStmt::typeCheck() {
-    if (cond== nullptr){
-        fprintf(stderr, "no cond in WhileStmt");
+    if (cond == nullptr){
+        fprintf(stderr, "no cond in WhileStmt\n");
         exit(EXIT_FAILURE);
     }
-    if (stmt== nullptr){
-        fprintf(stderr, "no stmt in WhileStmt");
+    Type*condType=cond->getSymbolEntry()->getType();
+    if (!condType->isInt()){
+        fprintf(stderr, "the result of conditional operation isn't int type in WhileStmt\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (stmt == nullptr){
+        fprintf(stderr, "no stmt in WhileStmt\n");
         exit(EXIT_FAILURE);
     }
     this->setNodeType(stmt->getNodeType());
 }
 
 void FuncRParamExpr::typeCheck() {
-    // TODO:check if RParams match corresponding FParams
-
+    return;
 }
 
 void CallExpr::typeCheck() {
-    if (params!= nullptr)
-        params->typeCheck();
+    printf("f\n");
+    FunctionType*functionType=dynamic_cast<FunctionType*>(symbolEntry->getType());
+    std::vector<SymbolEntry*>fParams=functionType->getParamsSymbolEntry();
+
+    std::vector<SymbolEntry*>rParams;
+    FuncRParamExpr*funcRParamExpr=dynamic_cast<FuncRParamExpr*>(this->rParams);
+    std::vector<ExprNode*> exprNodes=funcRParamExpr->getParams();
+    for(auto iter=exprNodes.begin();iter!=exprNodes.end();iter++){
+        rParams.push_back((*iter)->getSymbolEntry());
+    }
+
+    // sysy doesn't support FParams to have default values
+    // Such a nice features for developer
+    printf("%d %d\n",rParams.size(),fParams.size());
+    if (rParams.size()!=fParams.size()){
+        fprintf(stderr, "The number of RParams and LParams doesn't match, "
+                        "RParams is %s and LParams is %s.\n",rParams.size(),fParams.size());
+        exit(EXIT_FAILURE);
+    }
+    for (int i = 0; i < rParams.size(); ++i) {
+        Type*type1=rParams[i]->getType();
+        Type*type2=fParams[i]->getType();
+        if (type1->getKind()==type2->getKind()){
+            continue;
+        }
+        if (type1->isInt()&&type2->isFloat()){
+            continue;
+        }
+        if (type2->isInt()&&type1->isFloat()){
+            continue;
+        }
+        fprintf(stderr, "rParam doesn't match fParam."
+                        "rParam is %s and fParam is %s.\n",type1->toStr().c_str(), type2->toStr().c_str());
+        exit(EXIT_FAILURE);
+    }
+    return;
 }
 
 void ExprStmt::typeCheck() {
-    if (expr!= nullptr)
-        expr->typeCheck();
+    return;
 }
 
 void BinaryExpr::output(int level)
@@ -596,7 +817,8 @@ void IfElseStmt::output(int level)
 void ReturnStmt::output(int level)
 {
     fprintf(yyout, "%*cReturnStmt\n", level, ' ');
-    retValue->output(level + 4);
+    if (retValue)
+        retValue->output(level + 4);
 }
 
 void AssignStmt::output(int level)
@@ -624,10 +846,11 @@ void DeclStmts::insertDeclStmt(StmtNode *declStmt) {
 
 void DeclStmts::output(int level) {
     fprintf(yyout, "%*cDeclStmts\n", level, ' ');
-    while (declStmts.size()){
+    for (long unsigned int i = 0; i < declStmts.size(); ++i) {
         StmtNode *declStmt=declStmts.front();
-        declStmt->output(level + 4);
         declStmts.pop();
+        dynamic_cast<DeclStmt*>(declStmt)->output(level+4);
+        declStmts.push(declStmt);
     }
 }
 
@@ -676,12 +899,10 @@ void CallExpr::output(int level) {
     scope = dynamic_cast<IdentifierSymbolEntry*>(symbolEntry)->getScope();
     fprintf(yyout, "%*cCallExpr\tname: %s\tscope: %d\ttype: %s\n", level, ' ',
             name.c_str(), scope, type.c_str());
-    if (nullptr!=params)
-        params->output(level+4);
+    if (nullptr != rParams)
+        rParams->output(level + 4);
 }
 
 void ExprStmt::output(int level) {
     expr->output(level);
 }
-
-

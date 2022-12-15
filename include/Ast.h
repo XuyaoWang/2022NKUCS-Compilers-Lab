@@ -39,13 +39,13 @@ class IRBuilder;
 // 1. lexical analysis
 // 2. syntax analysis(optional:generate syntax tree)
 // 3. type check
-// 4. generate intermediate code(from button to top,from Instruction to BasicBloc to
+// 4. generate intermediate code(from button to top,from Instruction to BasicBlock to
 //    Function to Unit)
 // plus:the order of generate is from button to top,but in the process of implementing
 //      the function is a recursion.From top check if subtree has generated intermediate
 //      code.If yes,backtrace; If no, go more deeply.
 //
-// ----------{comment begin for generating intermediate code}--------------
+// ----------{comment end for generating intermediate code}--------------
 
 
 class Node
@@ -65,7 +65,6 @@ protected:
     void backPatch(std::vector<Instruction*> &list, BasicBlock*bb);
     std::vector<Instruction*> merge(std::vector<Instruction*> &list1, std::vector<Instruction*> &list2);
 
-    static void typeCheck(Type*type1,Type*type2);
 public:
     Node();
     int getSeq() const {return seq;};
@@ -87,6 +86,8 @@ protected:
     Operand *dst;   // The result of the subtree is stored into dst.
 public:
     ExprNode(SymbolEntry *symbolEntry) : symbolEntry(symbolEntry){};
+
+    void typeCheck() override;
 
     SymbolEntry *getSymbolEntry() const;
     Operand* getOperand() {return dst;};
@@ -121,12 +122,12 @@ public:
 
 class CallExpr : public ExprNode{
 private:
-    ExprNode* params;
+    ExprNode* rParams;
 
 public:
     CallExpr(SymbolEntry* se,
              ExprNode* params= nullptr):
-             ExprNode(se),params(params){};
+            ExprNode(se), rParams(params){};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -138,6 +139,7 @@ private:
 public:
     FuncRParamExpr(SymbolEntry *se) : ExprNode(se) {};
     void insertParam(ExprNode *Exp);
+    std::vector<ExprNode*> getParams(){return params;};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -169,9 +171,24 @@ private:
     // For stmtNode,if it's descendants contain ReturnStmt,it's nodeType is
     // corresponding type.Otherwise, it's type is nullptr
     Type*nodeType= nullptr;
+
+    int kind;
+protected:
+    //Todo:complete enum
+    enum{ASSIGN,FUNCDEF};
 public:
+    bool isAssignStmt() const{return kind==ASSIGN;};
+    bool isFunctionDefStmt() const{return kind==FUNCDEF;};
+
+    int getKind() const {return kind;};
+
+    StmtNode(int kind=-1):kind(kind){};
+
     Type*getNodeType();
     void setNodeType(Type* nodeType);
+
+    // before calling stmtTypeCheck,you must call typeCheck to make sure private member getting its type
+    void stmtTypeCheck(Type*type1,Type*type2);
 };
 
 class CompoundStmt : public StmtNode
@@ -299,7 +316,7 @@ private:
     StmtNode* decl;
     StmtNode *stmt;
 public:
-    FunctionDef(SymbolEntry *se,StmtNode* decl, StmtNode *stmt) : se(se), decl(decl),stmt(stmt){};
+    FunctionDef(SymbolEntry *se,StmtNode* decl, StmtNode *stmt) :StmtNode(StmtNode::FUNCDEF), se(se), decl(decl),stmt(stmt){};
     void output(int level);
     void typeCheck();
     void genCode();
