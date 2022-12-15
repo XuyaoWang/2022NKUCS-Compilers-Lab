@@ -398,7 +398,6 @@ void ExprNode::typeCheck() {
 
 void FunctionDef::typeCheck()
 {
-    // Todo
     if (nullptr==se){
         fprintf(stderr, "no se in FunctionDef\n");
         exit(EXIT_FAILURE);
@@ -417,8 +416,6 @@ void FunctionDef::typeCheck()
     Type *type2=stmt->getNodeType();
 
     this->stmtTypeCheck(type1,type2);
-
-    this->setNodeType(type1);
 }
 
 void BinaryExpr::typeCheck()
@@ -449,7 +446,6 @@ void BinaryExpr::typeCheck()
 }
 
 void Constant::typeCheck(){
-    // Todo
     if (nullptr==symbolEntry){
         fprintf(stderr, "no symbolEntry in Constant\n");
         exit(EXIT_FAILURE);
@@ -467,7 +463,6 @@ void Id::typeCheck(){
 
 void IfStmt::typeCheck()
 {
-    // Todo
     if(!this->cond) {
         fprintf(stderr, "no cond expr in IfStmt\n");
         exit(EXIT_FAILURE);

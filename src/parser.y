@@ -187,8 +187,6 @@ UnaryExp
     ID LPAREN FuncRParams RPAREN{
         SymbolEntry* se;
         se = identifiers->lookup($1);
-        // TODO
-        // check if function has been defined
         if (se == nullptr){
             fprintf(stderr, "function \"%s\" is undefined\n", (char*)$1);
             assert(se!=nullptr);
