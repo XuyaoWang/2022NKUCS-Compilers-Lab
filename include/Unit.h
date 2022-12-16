@@ -3,6 +3,8 @@
 
 #include <vector>
 #include "Function.h"
+#include "Type.h"
+#include "SymbolTable.h"
 
 class Unit
 {
@@ -11,10 +13,12 @@ class Unit
 
 private:
     std::vector<Function *> func_list;
+    std::vector<SymbolEntry*>global_var_list;
 public:
     Unit() = default;
     ~Unit() ;
     void insertFunc(Function *);
+    void insertGlobalVar(SymbolEntry*);
     void removeFunc(Function *);
     void output() const;
     iterator begin() { return func_list.begin(); };

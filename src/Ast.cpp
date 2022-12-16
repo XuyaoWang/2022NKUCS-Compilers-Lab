@@ -10,44 +10,6 @@ extern FILE *yyout;
 int Node::counter = 0;
 IRBuilder* Node::builder = nullptr;
 
-void exprTypeCheck(Type *fType1, Type *fType2){
-    if (fType1== nullptr||fType2== nullptr){
-        fprintf(stderr, "expr type can't be nullptr\n");
-        exit(EXIT_FAILURE);
-    }
-
-    Type*type1;
-    Type*type2;
-
-    if (fType1->isFunc()){
-        FunctionType*type=dynamic_cast<FunctionType*>(fType1);
-        type1=type->getRetType();
-    } else{
-        type1=fType1;
-    }
-
-    if (fType2->isFunc()){
-        FunctionType*type=dynamic_cast<FunctionType*>(fType2);
-        type2=type->getRetType();
-    } else{
-        type2=fType2;
-    }
-
-    if (type1->isVoid()||type2->isVoid()){
-        fprintf(stderr, "the operand's type cannot be void\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (type1->getKind()==type2->getKind()){
-        return;
-    }
-    if((type1->isFloat()&&type2->isInt())||
-       (type1->isInt()&&type2->isFloat())){
-        return;
-    }
-    fprintf(stderr, "type %s and %s mismatch in line xx\n",type1->toStr().c_str(), type2->toStr().c_str());
-    exit(EXIT_FAILURE);
-}
 
 Node::Node()
 {
@@ -80,47 +42,6 @@ void StmtNode::setNodeType(Type *nodeType) {
     this->nodeType=nodeType;
 }
 
-void StmtNode::stmtTypeCheck(Type *fType1, Type *fType2) {
-    Type*type1;
-    Type*type2;
-
-    // Type void is also a basic type.No need to transfer.
-    if (fType1->isFunc()){
-        FunctionType*type=dynamic_cast<FunctionType*>(fType1);
-        type1=type->getRetType();
-    } else{
-        type1=fType1;
-    }
-
-    if (fType2->isFunc()){
-        FunctionType*type=dynamic_cast<FunctionType*>(fType2);
-        type2=type->getRetType();
-    } else{
-        type2=fType2;
-    }
-
-    if (type1->isVoid()){
-        this->setNodeType(type2);
-        return;
-    }
-    if (type2->isVoid()){
-        this->setNodeType(type1);
-        return;
-    }
-
-    if (type1->getKind()==type2->getKind()){
-        this->setNodeType(type1);
-        return;
-    }
-    if((type1->isFloat()&&type2->isInt())||
-       (type1->isInt()&&type2->isFloat())){
-        this->setNodeType(type1->isFloat()?type1:type2);
-        return;
-    }
-    fprintf(stderr, "type %s and %s mismatch in line xx\n",type1->toStr().c_str(), type2->toStr().c_str());
-    exit(EXIT_FAILURE);
-}
-
 void Ast::genCode(Unit *unit)
 {
     IRBuilder *builder = new IRBuilder(unit);
@@ -130,12 +51,12 @@ void Ast::genCode(Unit *unit)
 
 void FunctionDef::genCode()
 {
+    printf("FunctionDef::genCode\n");
     Unit *unit = builder->getUnit();
     Function *func = new Function(unit, se);
     BasicBlock *entry = func->getEntry();
     // set the insert point to the entry basicblock of this function.
     builder->setInsertBB(entry);
-
     if(nullptr!=decl){
         decl->genCode();
     }
@@ -178,6 +99,7 @@ void FunctionDef::genCode()
 
 void BinaryExpr::genCode()
 {
+    printf("BinaryExpr::genCode\n");
     BasicBlock *bb = builder->getInsertBB();
     Function *func = bb->getParent();
     if (op == AND)
@@ -192,7 +114,6 @@ void BinaryExpr::genCode()
     }
     else if(op == OR)
     {
-        // Todo
         BasicBlock* trueBB = new BasicBlock(func);
         expr1->genCode();
         backPatch(expr1->falseList(), trueBB);
@@ -201,9 +122,55 @@ void BinaryExpr::genCode()
         true_list = merge(expr1->trueList(), expr2->trueList());
         false_list = expr2->falseList();
     }
-    else if(op >= LESS && op <= GREATER)
+    else if(op >= EQ && op <= GREATEREQ)
     {
-        // Todo
+        expr1->genCode();
+        expr2->genCode();
+        Operand *src1 = expr1->getOperand();
+        Operand *src2 = expr2->getOperand();
+        if (src1->getType()->getSize() == 1) {
+            Operand* dst = new Operand(new TemporarySymbolEntry(
+                    TypeSystem::intType, SymbolTable::getLabel()));
+            new ZextInstruction(dst, src1, bb);
+            src1 = dst;
+        }
+        if (src2->getType()->getSize() == 1) {
+            Operand* dst = new Operand(new TemporarySymbolEntry(
+                    TypeSystem::intType, SymbolTable::getLabel()));
+            new ZextInstruction(dst, src2, bb);
+            src2 = dst;
+        }
+        int opcode;
+        switch (op) {
+            case LESS:
+                opcode = CmpInstruction::L;
+                break;
+            case LESSEQ:
+                opcode = CmpInstruction::LE;
+                break;
+            case GREATER:
+                opcode = CmpInstruction::G;
+                break;
+            case GREATEREQ:
+                opcode = CmpInstruction::GE;
+                break;
+            case EQ:
+                opcode = CmpInstruction::E;
+                break;
+            case NEQ:
+                opcode = CmpInstruction::NE;
+                break;
+        }
+        new CmpInstruction(opcode, dst, src1, src2, bb);
+
+        //Todo
+        BasicBlock *true_bb, *false_bb, *temp_bb;
+        true_bb = new BasicBlock(func);
+        false_bb = new BasicBlock(func);
+        temp_bb = new BasicBlock(func);
+
+        true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
+        false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
     }
     else if(op >= ADD && op <= MOD)
     {
@@ -236,11 +203,13 @@ void BinaryExpr::genCode()
 
 void Constant::genCode()
 {
+    printf("Constant::genCode\n");
     // we don't need to generate code.
 }
 
 void Id::genCode()
 {
+    printf("Id::genCode\n");
     BasicBlock *bb = builder->getInsertBB();
     Operand *addr = dynamic_cast<IdentifierSymbolEntry*>(symbolEntry)->getAddr();
     new LoadInstruction(dst, addr, bb);
@@ -248,6 +217,7 @@ void Id::genCode()
 
 void IfStmt::genCode()
 {
+    printf("IfStmt::genCode\n");
     Function *func;
     BasicBlock *then_bb, *end_bb;
 
@@ -269,6 +239,7 @@ void IfStmt::genCode()
 
 void IfElseStmt::genCode()
 {
+    printf("IfElseStmt::genCode\n");
     Function* func;
     BasicBlock *then_bb, *else_bb, *end_bb;
 
@@ -296,18 +267,27 @@ void IfElseStmt::genCode()
 
 void CompoundStmt::genCode()
 {
+    printf("CompoundStmt::genCode\n");
     if (stmt!= nullptr)
         stmt->genCode();
 }
 
+int iii=0;
+
 void SeqNode::genCode()
 {
+    printf("SeqNode::genCode%d\n",iii);
+    iii+=1;
     stmt1->genCode();
     stmt2->genCode();
+    printf("flag%d\n",iii);
+    iii-=1;
 }
 
 void DeclStmt::genCode()
 {
+    printf("DeclStmt::genCode\n");
+    Unit* unit = builder->getUnit();
     IdentifierSymbolEntry *se = dynamic_cast<IdentifierSymbolEntry *>(id->getSymPtr());
     if(se->isGlobal()){
         Operand *addr;
@@ -316,8 +296,31 @@ void DeclStmt::genCode()
         addr_se->setType(new PointerType(se->getType()));
         addr = new Operand(addr_se);
         se->setAddr(addr);
+        unit->insertGlobalVar(se);
+    }else if(se->isParam()){
+        Function *func = builder->getInsertBB()->getParent();
+        BasicBlock *entry = func->getEntry();
+        // set the addr operand of param.
+        // param in initializing doesn't have addr.we must initial addr
+        Operand *addr;
+        SymbolEntry *addr_se;
+        Type *type;
+        type = new PointerType(se->getType());
+        addr_se = new TemporarySymbolEntry(type, SymbolTable::getLabel());
+        addr = new Operand(addr_se);
+        dynamic_cast<IdentifierSymbolEntry*>(id->getSymPtr())->setAddr(addr);
+        
+        Instruction *alloca;
+        SymbolEntry *dst_se;
+        type=new PointerType(se->getType());
+        dst_se = new TemporarySymbolEntry(type, SymbolTable::getLabel());
+        Operand*dst=new Operand(dst_se);
+        alloca = new AllocaInstruction(dst, se);        // allocate space for param in function stack.
+        entry->insertFront(alloca);                     // allocate instructions should be inserted into the start of the entry block.
+        BasicBlock* bb = builder->getInsertBB();
+        new StoreInstruction(dst,id->getOperand(), bb);
     }
-    else if(se->isLocal()||se->isParam()){
+    else if(se->isLocal()){
         Function *func = builder->getInsertBB()->getParent();
         BasicBlock *entry = func->getEntry();
         Instruction *alloca;
@@ -327,19 +330,14 @@ void DeclStmt::genCode()
         type = new PointerType(se->getType());
         addr_se = new TemporarySymbolEntry(type, SymbolTable::getLabel());
         addr = new Operand(addr_se);
-        alloca = new AllocaInstruction(addr, se);                   // allocate space for local id in function stack.
-        entry->insertFront(alloca);                                 // allocate instructions should be inserted into the begin of the entry block.
-
-        if (se->isParam()){
-            BasicBlock* bb = builder->getInsertBB();
-            new StoreInstruction(addr, se->getAddr(), bb);
-        }
-
+        alloca = new AllocaInstruction(addr, se);                // allocate space for local id in function stack.
+        entry->insertFront(alloca);                                 // allocate instructions should be inserted into the start of the entry block.
         se->setAddr(addr);                                          // set the addr operand in symbol entry so that we can use it in subsequent code generation.
 
         if (nullptr!=expr){
             expr->genCode();
             BasicBlock* bb = builder->getInsertBB();
+            printf("t3\n");
             new StoreInstruction(addr, expr->getOperand(), bb);
         }
     }
@@ -347,6 +345,7 @@ void DeclStmt::genCode()
 
 void ReturnStmt::genCode()
 {
+    printf("ReturnStmt::genCode\n");
     BasicBlock *bb = builder->getInsertBB();
     Operand* src = nullptr;
     if (nullptr!=retValue) {
@@ -358,6 +357,7 @@ void ReturnStmt::genCode()
 
 void AssignStmt::genCode()
 {
+    printf("AssignStmt::genCode\n");
     BasicBlock *bb = builder->getInsertBB();
     expr->genCode();
     Operand *addr = dynamic_cast<IdentifierSymbolEntry*>(lval->getSymPtr())->getAddr();
@@ -366,15 +366,48 @@ void AssignStmt::genCode()
      * We haven't implemented array yet, the lval can only be ID. So we just store the result of the `expr` to the addr of the id.
      * If you want to implement array, you have to caculate the address first and then store the result into it.
      */
+    printf("t1\n");
     new StoreInstruction(addr, src, bb);
 }
 
 void UnaryExpr::genCode() {
-    //Todo
+    printf("UnaryExpr::genCode\n");
     expr->genCode();
+    switch (op) {
+        case NOT:{
+            BasicBlock* bb = builder->getInsertBB();
+            Operand* src = expr->getOperand();
+            if (expr->getSymPtr()->getType()->isFloat() ||
+                expr->getSymPtr()->getType()->isInt()) {
+                Operand* temp = new Operand(new TemporarySymbolEntry(
+                        TypeSystem::boolType, SymbolTable::getLabel()));
+                new CmpInstruction(
+                        CmpInstruction::NE, temp, src,
+                        new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)),
+                        bb);
+                src = temp;
+            }
+            new XorInstruction(dst, src, bb);
+            break;
+        }
+        case SUB:{
+            Operand* src2;
+            BasicBlock* bb = builder->getInsertBB();
+            Operand* src1 = new Operand(new ConstantSymbolEntry(dst->getType(), 0));
+            if (expr->getSymPtr()->getType()->getSize() == 1) {
+                src2 = new Operand(new TemporarySymbolEntry(
+                        TypeSystem::intType, SymbolTable::getLabel()));
+                new ZextInstruction(src2, expr->getOperand(), bb);
+            } else
+                src2 = expr->getOperand();
+            new BinaryInstruction(BinaryInstruction::SUB, dst, src1, src2, bb);
+            break;
+        }
+    }
 }
 
 void DeclStmts::genCode() {
+    printf("DeclStmts::genCode\n");
     for (long unsigned int i = 0; i < declStmts.size(); ++i) {
         StmtNode *declStmt=declStmts.front();
         declStmts.pop();
@@ -384,6 +417,7 @@ void DeclStmts::genCode() {
 }
 
 void WhileStmt::genCode() {
+    printf("WhileStmt::genCode\n");
     Function* func;
     BasicBlock *cond_bb, *while_bb, *end_bb, *bb;
 
@@ -410,16 +444,25 @@ void WhileStmt::genCode() {
 }
 
 void FuncRParamExpr::genCode() {
+    printf("FuncRParamExpr::genCode\n");
     for(auto iter=params.begin();iter!=params.end();iter++){
         (*iter)->genCode();
     }
 }
 
 void CallExpr::genCode() {
-
+    printf("CallExpr::genCode\n");
+    std::vector<Operand*> operands;
+    if (nullptr!=rParams){
+        rParams->genCode();
+        operands=dynamic_cast<FuncRParamExpr*>(rParams)->getOperands();
+    }
+    BasicBlock* bb = builder->getInsertBB();
+    new CallInstruction(dst, this->getSymPtr(), operands, bb);
 }
 
 void ExprStmt::genCode() {
+    printf("ExprStmt::genCode\n");
     expr->genCode();
 }
 
@@ -483,9 +526,9 @@ void BinaryExpr::typeCheck()
     expr1->typeCheck();
     expr2->typeCheck();
 
-    Type *type1 = expr1->getSymbolEntry()->getType();
-    Type *type2 = expr2->getSymbolEntry()->getType();
-    exprTypeCheck(type1,type2);
+    Type *type1 = expr1->getSymPtr()->getType();
+    Type *type2 = expr2->getSymPtr()->getType();
+    utils->exprTypeCheck(type1,type2);
 }
 
 void Constant::typeCheck(){
@@ -515,7 +558,7 @@ void IfStmt::typeCheck()
         exit(EXIT_FAILURE);
     }
     cond->typeCheck();
-    Type*condType=cond->getSymbolEntry()->getType();
+    Type*condType=cond->getSymPtr()->getType();
     if (!condType->isInt()){
         fprintf(stderr, "the result of conditional operation isn't int type in IfStmt\n");
         exit(EXIT_FAILURE);
@@ -539,7 +582,7 @@ void IfElseStmt::typeCheck(){
         exit(EXIT_FAILURE);
     }
     cond->typeCheck();
-    Type*condType=cond->getSymbolEntry()->getType();
+    Type*condType=cond->getSymPtr()->getType();
     if (!condType->isInt()){
         fprintf(stderr, "the result of conditional operation isn't int type in IfElseStmt\n");
         exit(EXIT_FAILURE);
@@ -551,7 +594,7 @@ void IfElseStmt::typeCheck(){
     Type*type1=thenStmt->getNodeType();
     Type*type2=elseStmt->getNodeType();
 
-    this->stmtTypeCheck(type1,type2);
+    utils->stmtTypeCheck(type1,type2,this);
 }
 
 void CompoundStmt::typeCheck(){
@@ -582,7 +625,7 @@ void SeqNode::typeCheck()
     Type*type1=stmt1->getNodeType();
     Type*type2=stmt2->getNodeType();
 
-    this->stmtTypeCheck(type1,type2);
+    utils->stmtTypeCheck(type1,type2,this);
 }
 
 void DeclStmt::typeCheck()
@@ -593,25 +636,23 @@ void DeclStmt::typeCheck()
     }
     expr->typeCheck();
 
-    Type*type1=id->getSymbolEntry()->getType();
-    Type*type2=expr->getSymbolEntry()->getType();
-    exprTypeCheck(type1,type2);
+    Type*type1=id->getSymPtr()->getType();
+    Type*type2=expr->getSymPtr()->getType();
+    utils->exprTypeCheck(type1,type2);
 }
 
 void ReturnStmt::typeCheck()
 {
-    // Todo
     if (nullptr == retValue){
         // The default value of nodeType is VoidType()
         return;
     }
     retValue->typeCheck();
-    this->setNodeType(retValue->getSymbolEntry()->getType());
+    this->setNodeType(retValue->getSymPtr()->getType());
 }
 
 void AssignStmt::typeCheck()
 {
-    // Todo
     if (nullptr == lval){
         fprintf(stderr, "no lval in AssignStmt\n");
         exit(EXIT_FAILURE);
@@ -623,9 +664,9 @@ void AssignStmt::typeCheck()
     lval->typeCheck();
     expr->typeCheck();
 
-    Type*type1=lval->getSymbolEntry()->getType();
-    Type*type2=expr->getSymbolEntry()->getType();
-    exprTypeCheck(type1,type2);
+    Type*type1=lval->getSymPtr()->getType();
+    Type*type2=expr->getSymPtr()->getType();
+    utils->exprTypeCheck(type1,type2);
 }
 
 void UnaryExpr::typeCheck() {
@@ -656,7 +697,7 @@ void WhileStmt::typeCheck() {
         exit(EXIT_FAILURE);
     }
     cond->typeCheck();
-    Type*condType=cond->getSymbolEntry()->getType();
+    Type*condType=cond->getSymPtr()->getType();
     if (!condType->isInt()){
         fprintf(stderr, "the result of conditional operation isn't int type in WhileStmt\n");
         exit(EXIT_FAILURE);
@@ -683,10 +724,14 @@ void CallExpr::typeCheck() {
 
     std::vector<SymbolEntry*>rParams;
     FuncRParamExpr*funcRParamExpr=dynamic_cast<FuncRParamExpr*>(this->rParams);
-    std::vector<ExprNode*> exprNodes=funcRParamExpr->getParams();
-    for(auto iter=exprNodes.begin();iter!=exprNodes.end();iter++){
-        rParams.push_back((*iter)->getSymbolEntry());
+    std::vector<ExprNode*> exprNodes;
+    if (funcRParamExpr!= nullptr){
+        exprNodes=funcRParamExpr->getParams();
+        for(auto iter=exprNodes.begin();iter!=exprNodes.end();iter++){
+            rParams.push_back((*iter)->getSymPtr());
+        }
     }
+
 
     // sysy doesn't support FParams to have default values
     // Such a nice features for developer
@@ -899,7 +944,7 @@ void DeclStmts::output(int level) {
     }
 }
 
-std::vector<SymbolEntry *> DeclStmts::getId() {
+std::vector<SymbolEntry *> DeclStmts::getSymbolEntrys() {
     std::vector<SymbolEntry *> symbolEntry;
     if(declStmts.empty()){
         return symbolEntry;
@@ -908,7 +953,7 @@ std::vector<SymbolEntry *> DeclStmts::getId() {
         StmtNode *declStmt=declStmts.front();
         declStmts.pop();
         symbolEntry.push_back(dynamic_cast<DeclStmt*>(declStmt)->
-                getId()->getSymbolEntry());
+                getId()->getSymPtr());
         declStmts.push(declStmt);
     }
     return symbolEntry;
@@ -920,8 +965,12 @@ void WhileStmt::output(int level) {
     stmt->output(level + 4);
 }
 
-SymbolEntry *ExprNode::getSymbolEntry() const {
-    return symbolEntry;
+void ExprNode::output(int level) {
+    return;
+}
+
+void ExprNode::genCode() {
+    return;
 }
 
 void FuncRParamExpr::output(int level) {
@@ -936,6 +985,14 @@ void FuncRParamExpr::insertParam(ExprNode *Exp) {
     params.push_back(Exp);
 }
 
+std::vector<Operand *> FuncRParamExpr::getOperands() {
+    std::vector<Operand *>operands;
+    for(auto param:params){
+        operands.push_back(param->getOperand());
+    }
+    return operands;
+}
+
 void CallExpr::output(int level) {
     std::string name, type;
     int scope;
@@ -946,6 +1003,18 @@ void CallExpr::output(int level) {
             name.c_str(), scope, type.c_str());
     if (nullptr != rParams)
         rParams->output(level + 4);
+}
+
+CallExpr::CallExpr(SymbolEntry *se, ExprNode *params) :
+        ExprNode(se), rParams(params){
+    if (se!= nullptr){
+        Type* type = dynamic_cast<FunctionType*>(symbolEntry->getType())->getRetType();
+        if (type != TypeSystem::voidType) {
+            SymbolEntry* se =
+                    new TemporarySymbolEntry(type, SymbolTable::getLabel());
+            dst = new Operand(se);
+        }
+    }
 }
 
 void ExprStmt::output(int level) {

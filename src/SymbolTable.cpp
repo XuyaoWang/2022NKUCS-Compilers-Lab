@@ -26,6 +26,13 @@ IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type, std::string name, int s
     addr = nullptr;
 }
 
+IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type, std::string name, int scope,int value) : SymbolEntry(type, SymbolEntry::VARIABLE), name(name)
+{
+    this->scope = scope;
+    this->value=value;
+    addr = nullptr;
+}
+
 std::string IdentifierSymbolEntry::toStr()
 {
     return "@" + name;

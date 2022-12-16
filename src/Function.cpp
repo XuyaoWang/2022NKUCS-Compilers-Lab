@@ -31,8 +31,21 @@ void Function::output() const
 {
     FunctionType* funcType = dynamic_cast<FunctionType*>(sym_ptr->getType());
     Type *retType = funcType->getRetType();
-    fprintf(yyout, "define %s %s() {\n", retType->toStr().c_str(), sym_ptr->toStr().c_str());
-    std::set<BasicBlock *> v;
+    std::vector<SymbolEntry*> paramsSymbolEntry = funcType->getParamsSymbolEntry();
+    if (paramsSymbolEntry.size() == 0)
+        fprintf(yyout, "define %s %s() {\n", retType->toStr().c_str(),
+                sym_ptr->toStr().c_str());
+    else {
+        fprintf(yyout, "define %s %s(", retType->toStr().c_str(),
+                sym_ptr->toStr().c_str());
+        for (long unsigned int i = 0; i < paramsSymbolEntry.size(); i++) {
+            if (i)
+                fprintf(yyout, ", ");
+            fprintf(yyout, "%s %s", paramsSymbolEntry[i]->getType()->toStr().c_str(),
+                    dynamic_cast<IdentifierSymbolEntry*>(paramsSymbolEntry[i])->getAddr()->toStr().c_str());
+        }
+        fprintf(yyout, ") {\n");
+    }std::set<BasicBlock *> v;
     std::list<BasicBlock *> q;
     q.push_back(entry);
     v.insert(entry);

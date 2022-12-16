@@ -1,4 +1,5 @@
 #include "Unit.h"
+extern FILE *yyout;
 
 void Unit::insertFunc(Function *f)
 {
@@ -12,12 +13,24 @@ void Unit::removeFunc(Function *func)
 
 void Unit::output() const
 {
-    for (auto &func : func_list)
+    for (auto &se:global_var_list){
+        if (se->getType()->isInt()) {
+            fprintf(yyout, "%s = global %s %d, align 4\n", se->toStr().c_str(),
+                    se->getType()->toStr().c_str(),
+                    (int)((IdentifierSymbolEntry*)se)->getValue());
+        }
+    }
+    for (auto &func : func_list){
         func->output();
+    }
 }
 
 Unit::~Unit()
 {
     for(auto &func:func_list)
         delete func;
+}
+
+void Unit::insertGlobalVar(SymbolEntry *se) {
+    global_var_list.push_back(se);
 }

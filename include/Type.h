@@ -11,16 +11,19 @@ private:
     int kind;
 protected:
     enum {INT, VOID, FUNC, FLOAT, PTR};
+    int size;
 public:
-    Type(int kind) : kind(kind) {};
+    Type(int kind,int size=0) : kind(kind),size(size) {};
     virtual ~Type() {};
     virtual std::string toStr() = 0;
     bool isInt() const {return kind == INT;};
     bool isVoid() const {return kind == VOID;};
     bool isFunc() const {return kind == FUNC;};
     bool isFloat() const {return kind == FLOAT;};
+    bool isPtr() const {return kind==PTR;};
 
     int getKind() const {return kind;};
+    int getSize() const {return size;};
 
     static int getInt() {return INT;};
     static int getVoid() {return VOID;};
@@ -30,19 +33,15 @@ public:
 
 class IntType : public Type
 {
-private:
-    int size;
 public:
-    IntType(int size) : Type(Type::INT), size(size){};
+    IntType(int size) : Type(Type::INT,size){};
     std::string toStr();
 };
 
 class FloatType : public Type
 {
-private:
-    int size;
 public:
-    FloatType(float size) : Type(Type::FLOAT), size(size){};
+    FloatType(int size) : Type(Type::FLOAT,size){};
     std::string toStr();
 };
 

@@ -6,6 +6,7 @@
 #include <iostream>
 #include "Operand.h"
 #include "Type.h"
+#include "Utils.h"
 
 class SymbolEntry;
 class Unit;
@@ -48,8 +49,6 @@ class IRBuilder;
 //
 // ----------{comment end for generating intermediate code}--------------
 
-void exprTypeCheck(Type*,Type*);
-
 class Node
 {
 private:
@@ -85,15 +84,38 @@ class ExprNode : public Node
 {
 protected:
     SymbolEntry *symbolEntry;
-    Operand *dst;   // The result of the subtree is stored into dst.
+    Operand *dst;
+    std::vector<Operand*>srcs;
+    int kind;
 public:
-    ExprNode(SymbolEntry *symbolEntry) : symbolEntry(symbolEntry){};
+    const std::vector<Operand *> &getSrcs() const {return srcs;}
+    void setSrcs(const std::vector<Operand *> &srcs) {ExprNode::srcs = srcs;}
+    Operand* getOperand() {return dst;};
+    void setOperand(Operand*dst){ this->dst=dst;};
+
+    SymbolEntry* getSymPtr() {return symbolEntry;};
+protected:
+    //Todo
+    enum{
+        BINARY,
+        CALL,
+        CONSTANT
+    };
+public:
+    void output(int level) override;
+    void genCode() override;
+
+public:
+    ExprNode(SymbolEntry *symbolEntry,int kind=-1) : symbolEntry(symbolEntry){};
 
     void typeCheck() override;
 
-    SymbolEntry *getSymbolEntry() const;
-    Operand* getOperand() {return dst;};
-    SymbolEntry* getSymPtr() {return symbolEntry;};
+
+
+    //Todo
+    bool isConstantExpr()const{return kind==CONSTANT;};
+    int getKind(){return kind;};
+
 };
 
 class BinaryExpr : public ExprNode
@@ -102,8 +124,8 @@ private:
     int op;
     ExprNode *expr1, *expr2;
 public:
-    enum {ADD, SUB, AND, OR, EQ, NEQ,LESS, LESSEQ , GREATER, GREATEREQ,MUL, DIV, MOD};
-    BinaryExpr(SymbolEntry *se, int op, ExprNode*expr1, ExprNode*expr2) : ExprNode(se), op(op), expr1(expr1), expr2(expr2){};
+    enum {ADD, SUB, MUL, DIV, MOD, AND, OR, EQ, NEQ,LESS, LESSEQ , GREATER, GREATEREQ};
+    BinaryExpr(SymbolEntry *se, int op, ExprNode*expr1, ExprNode*expr2) : ExprNode(se), op(op), expr1(expr1), expr2(expr2){dst = new Operand(se);};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -116,7 +138,7 @@ private:
     ExprNode *expr;
 public:
     enum {ADD, SUB, NOT};
-    UnaryExpr(SymbolEntry *se, int op, ExprNode*expr) : ExprNode(se), op(op), expr(expr){};
+    UnaryExpr(SymbolEntry *se, int op, ExprNode*expr) : ExprNode(se), op(op), expr(expr){dst = new Operand(se);};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -128,8 +150,7 @@ private:
 
 public:
     CallExpr(SymbolEntry* se,
-             ExprNode* params= nullptr):
-            ExprNode(se), rParams(params){};
+             ExprNode* params= nullptr);
     void output(int level);
     void typeCheck();
     void genCode();
@@ -142,6 +163,7 @@ public:
     FuncRParamExpr(SymbolEntry *se) : ExprNode(se) {};
     void insertParam(ExprNode *Exp);
     std::vector<ExprNode*> getParams(){return params;};
+    std::vector<Operand*> getOperands();
     void output(int level);
     void typeCheck();
     void genCode();
@@ -160,7 +182,13 @@ public:
 class Id : public ExprNode
 {
 public:
-    Id(SymbolEntry *se) : ExprNode(se){SymbolEntry *temp = new TemporarySymbolEntry(se->getType(), SymbolTable::getLabel()); dst = new Operand(temp);};
+    Id(SymbolEntry *se) : ExprNode(se){
+        SymbolEntry *temp;
+        temp = new TemporarySymbolEntry(
+            se->getType(),
+            SymbolTable::getLabel());
+        dst = new Operand(temp);
+    };
     void output(int level);
     void typeCheck();
     void genCode();
@@ -188,9 +216,6 @@ public:
 
     Type*getNodeType();
     void setNodeType(Type* nodeType);
-
-    // before calling stmtTypeCheck,you must call typeCheck to make sure private member getting its type
-    void stmtTypeCheck(Type*type1,Type*type2);
 };
 
 class CompoundStmt : public StmtNode
@@ -236,7 +261,7 @@ public:
     DeclStmts(){};
     void insertDeclStmt(StmtNode*declStmt);
     void output(int level);
-    std::vector<SymbolEntry*>getId();
+    std::vector<SymbolEntry*>getSymbolEntrys();
     void typeCheck();
     void genCode();
 };

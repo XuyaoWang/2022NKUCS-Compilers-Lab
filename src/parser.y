@@ -384,8 +384,15 @@ ConstDef
 
         identifiers->install($1, se);
 
-	// TODO
-	// store init value into symbol table
+        // set init value for global var
+        if(dynamic_cast<IdentifierSymbolEntry*>(se)->isGlobal()){
+            if(!dynamic_cast<ConstantSymbolEntry*>($3->getSymbolEntry())->isConstant()){
+            	fprintf(stderr, "expression must have a constant value\n");
+                exit(EXIT_FAILURE);
+            }
+            dynamic_cast<IdentifierSymbolEntry*>(se)->setValue(
+                dynamic_cast<ConstantSymbolEntry*>($3->getSymbolEntry())->getValue());
+        }
 
 
         $$ = new DeclStmt(new Id(se),$3);
@@ -512,14 +519,17 @@ VarDef
 
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
 
-        // std::cout<<"ID ASSIGN InitVal"<<std::endl;
-        // TODO
-        // add try catch block to check if id had already been declared
-
         identifiers->install($1, se);
 
-	// TODO
-	// store init value into symbol table
+        // set init value for global var
+        if(dynamic_cast<IdentifierSymbolEntry*>(se)->isGlobal()){
+            if(!dynamic_cast<ConstantSymbolEntry*>($3->getSymbolEntry())->isConstant()){
+            	fprintf(stderr, "expression must have a constant value\n");
+                exit(EXIT_FAILURE);
+            }
+            dynamic_cast<IdentifierSymbolEntry*>(se)->setValue(
+                dynamic_cast<ConstantSymbolEntry*>($3->getSymbolEntry())->getValue());
+        }
 
 
         $$ = new DeclStmt(new Id(se),$3);
@@ -569,7 +579,7 @@ FuncDef
 
         DeclStmts *temp=dynamic_cast<DeclStmts*>($5);
         if(nullptr!=temp){
-            paramsSymbolEntry=temp->getId();
+            paramsSymbolEntry=temp->getSymbolEntrys();
         }
         funcType = new FunctionType($1, paramsSymbolEntry);
 
