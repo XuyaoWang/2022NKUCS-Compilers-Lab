@@ -79,13 +79,20 @@ private:
     enum {GLOBAL, PARAM, LOCAL};
     std::string name;
     int scope;
-    Operand *addr;  // The address of the identifier.
+    Operand *addr;  // The current address of the identifier.
     // You can add any field you need here.
+
+    // When reading a param from param list, llvm will assign a new address to
+    // the param. But param list need it's original addr. So using a new Operand
+    // to store original addr
+    Operand *initAddr;
+    int value;
 
     int kind;
 
 public:
     IdentifierSymbolEntry(Type *type, std::string name, int scope);
+    IdentifierSymbolEntry(Type *type, std::string name, int scope,int value);
     virtual ~IdentifierSymbolEntry() {};
     std::string toStr();
     bool isGlobal() const {return scope == GLOBAL;};
@@ -95,6 +102,11 @@ public:
     void setAddr(Operand *addr) {this->addr = addr;};
     Operand* getAddr() {return addr;};
     // You can add any function you need here.
+    void setValue(int value) { this->value = value;};
+    int getValue(){ return value;};
+
+    void setInitAddr(Operand *initAddr) {this->initAddr = initAddr;};
+    Operand* getInitAddr() {return initAddr;};
 };
 
 

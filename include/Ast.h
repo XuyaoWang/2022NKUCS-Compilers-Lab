@@ -6,6 +6,7 @@
 #include <iostream>
 #include "Operand.h"
 #include "Type.h"
+#include "Utils.h"
 
 class SymbolEntry;
 class Unit;
@@ -48,8 +49,6 @@ class IRBuilder;
 //
 // ----------{comment end for generating intermediate code}--------------
 
-void exprTypeCheck(Type*,Type*);
-
 class Node
 {
 private:
@@ -85,15 +84,58 @@ class ExprNode : public Node
 {
 protected:
     SymbolEntry *symbolEntry;
-    Operand *dst;   // The result of the subtree is stored into dst.
+    Operand *dst;
+    int kind;
+    bool isCond= false;
 public:
-    ExprNode(SymbolEntry *symbolEntry) : symbolEntry(symbolEntry){};
+    Operand* getOperand() {return dst;};
+    void setOperand(Operand* dst){ this->dst=dst;};
 
+    SymbolEntry * getSymPtr() {return symbolEntry;};
+    void setSymPtr(SymbolEntry* symbolEntry){ this->symbolEntry=symbolEntry;};
+protected:
+    //Todo
+    enum{
+        CALL,
+        BINARY,
+        CONSTANT,
+        UNARY
+    };
+public:
+    void output(int level) override;
+    void genCode() override;
     void typeCheck() override;
 
-    SymbolEntry *getSymbolEntry() const;
-    Operand* getOperand() {return dst;};
-    SymbolEntry* getSymPtr() {return symbolEntry;};
+public:
+    ExprNode(SymbolEntry *symbolEntry,int kind=-1) : symbolEntry(symbolEntry),kind(kind){};
+
+    //Todo
+    bool isCondExpr(){return isCond;};
+    void setCondExpr(){isCond= true;};
+    void unsetCondExpr(){isCond= false;};
+    bool isConstantExpr()const{return kind==CONSTANT;};
+    bool isBinaryExpr()const{return kind==BINARY;};
+    bool isUnaryExpr()const{return kind==UNARY;};
+    int getKind(){return kind;};
+
+};
+
+class ImplicitCastExpr : public ExprNode {
+private:
+    ExprNode* srcExpr;
+public:
+    ImplicitCastExpr(ExprNode* srcExpr, Type* dstType = TypeSystem::boolType)
+            : ExprNode(symbolEntry), srcExpr(srcExpr) {
+
+        symbolEntry = new TemporarySymbolEntry(dstType, SymbolTable::getLabel());
+        dst = new Operand(symbolEntry);
+    };
+
+    void output(int level) override;
+    void genCode() override;
+    void typeCheck() override;
+
+    ExprNode* getSrcExpr() { return srcExpr; };
 };
 
 class BinaryExpr : public ExprNode
@@ -102,11 +144,14 @@ private:
     int op;
     ExprNode *expr1, *expr2;
 public:
-    enum {ADD, SUB, AND, OR, EQ, NEQ,LESS, LESSEQ , GREATER, GREATEREQ,MUL, DIV, MOD};
-    BinaryExpr(SymbolEntry *se, int op, ExprNode*expr1, ExprNode*expr2) : ExprNode(se), op(op), expr1(expr1), expr2(expr2){};
+    enum {ADD, SUB, MUL, DIV, MOD, AND, OR, EQ, NEQ,LESS, LESSEQ , GREATER, GREATEREQ};
+    BinaryExpr(SymbolEntry *se, int op, ExprNode*expr1, ExprNode*expr2) : ExprNode(se,ExprNode::BINARY), op(op), expr1(expr1), expr2(expr2){};
     void output(int level);
     void typeCheck();
     void genCode();
+    int getOp(){return op;};
+    ExprNode *getExpr1(){return expr1;};
+    ExprNode *getExpr2(){return expr2;};
 };
 
 class UnaryExpr : public ExprNode
@@ -116,10 +161,13 @@ private:
     ExprNode *expr;
 public:
     enum {ADD, SUB, NOT};
-    UnaryExpr(SymbolEntry *se, int op, ExprNode*expr) : ExprNode(se), op(op), expr(expr){};
+    UnaryExpr(SymbolEntry *se, int op, ExprNode*expr) : ExprNode(se,ExprNode::UNARY), op(op), expr(expr){};
     void output(int level);
     void typeCheck();
     void genCode();
+    int getOp(){return op;};
+    ExprNode*getExpr(){return expr;};
+    void setExpr(ExprNode*exprNode){expr=exprNode;};
 };
 
 class CallExpr : public ExprNode{
@@ -128,8 +176,7 @@ private:
 
 public:
     CallExpr(SymbolEntry* se,
-             ExprNode* params= nullptr):
-            ExprNode(se), rParams(params){};
+             ExprNode* params= nullptr);
     void output(int level);
     void typeCheck();
     void genCode();
@@ -142,6 +189,7 @@ public:
     FuncRParamExpr(SymbolEntry *se) : ExprNode(se) {};
     void insertParam(ExprNode *Exp);
     std::vector<ExprNode*> getParams(){return params;};
+    std::vector<Operand*> getOperands();
     void output(int level);
     void typeCheck();
     void genCode();
@@ -160,7 +208,7 @@ public:
 class Id : public ExprNode
 {
 public:
-    Id(SymbolEntry *se) : ExprNode(se){SymbolEntry *temp = new TemporarySymbolEntry(se->getType(), SymbolTable::getLabel()); dst = new Operand(temp);};
+    Id(SymbolEntry *se) : ExprNode(se){};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -177,10 +225,14 @@ private:
     int kind;
 protected:
     //Todo:complete enum
-    enum{ASSIGN,FUNCDEF};
+    enum{
+        ASSIGN,
+        FUNCDEF,
+        COMPOUND};
 public:
     bool isAssignStmt() const{return kind==ASSIGN;};
     bool isFunctionDefStmt() const{return kind==FUNCDEF;};
+    bool isCompoundStmt() const{return kind==COMPOUND;};
 
     int getKind() const {return kind;};
 
@@ -188,9 +240,6 @@ public:
 
     Type*getNodeType();
     void setNodeType(Type* nodeType);
-
-    // before calling stmtTypeCheck,you must call typeCheck to make sure private member getting its type
-    void stmtTypeCheck(Type*type1,Type*type2);
 };
 
 class CompoundStmt : public StmtNode
@@ -198,7 +247,7 @@ class CompoundStmt : public StmtNode
 private:
     StmtNode *stmt;
 public:
-    CompoundStmt(StmtNode *stmt) : stmt(stmt) {};
+    CompoundStmt(StmtNode *stmt) : StmtNode(StmtNode::COMPOUND), stmt(stmt) {};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -222,9 +271,9 @@ private:
     ExprNode* expr;
 public:
     DeclStmt(Id *id,ExprNode* expr = nullptr) : id(id),expr(expr){};
-    void output(int level);
-    void typeCheck();
-    void genCode();
+    void output(int level) override;
+    void typeCheck() override;
+    void genCode() override;
 
     Id *getId() const;
 };
@@ -236,7 +285,7 @@ public:
     DeclStmts(){};
     void insertDeclStmt(StmtNode*declStmt);
     void output(int level);
-    std::vector<SymbolEntry*>getId();
+    std::vector<SymbolEntry*>getSymbolEntrys();
     void typeCheck();
     void genCode();
 };
@@ -247,7 +296,7 @@ private:
     ExprNode *cond;
     StmtNode *thenStmt;
 public:
-    IfStmt(ExprNode *cond, StmtNode *thenStmt) : cond(cond), thenStmt(thenStmt){};
+    IfStmt(ExprNode *cond, StmtNode *thenStmt) : cond(cond), thenStmt(thenStmt){cond->setCondExpr();};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -260,7 +309,7 @@ private:
     StmtNode *thenStmt;
     StmtNode *elseStmt;
 public:
-    IfElseStmt(ExprNode *cond, StmtNode *thenStmt, StmtNode *elseStmt) : cond(cond), thenStmt(thenStmt), elseStmt(elseStmt) {};
+    IfElseStmt(ExprNode *cond, StmtNode *thenStmt, StmtNode *elseStmt) : cond(cond), thenStmt(thenStmt), elseStmt(elseStmt) {cond->setCondExpr();};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -271,7 +320,7 @@ private:
     ExprNode* cond;
     StmtNode* stmt;
 public:
-    WhileStmt(ExprNode*cond,StmtNode*stmt):cond(cond),stmt(stmt){}
+    WhileStmt(ExprNode*cond,StmtNode*stmt):cond(cond),stmt(stmt){cond->setCondExpr();};
     void output(int level);
     void typeCheck();
     void genCode();
@@ -294,7 +343,9 @@ private:
     ExprNode *lval;
     ExprNode *expr;
 public:
-    AssignStmt(ExprNode *lval, ExprNode *expr) : lval(lval), expr(expr) {};
+    AssignStmt(ExprNode *lval, ExprNode *expr) : lval(lval), expr(expr) {
+
+    };
     void output(int level);
     void typeCheck();
     void genCode();

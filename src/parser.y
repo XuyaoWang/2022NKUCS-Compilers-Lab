@@ -170,17 +170,16 @@ UnaryExp
     PrimaryExp{$$=$1;}
     |
     ADD UnaryExp{
-        SymbolEntry *se=new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
-        $$ = new UnaryExpr(se,UnaryExpr::ADD,$2);
+        $$ = $2;
     }
     |
     SUB UnaryExp{
-        SymbolEntry *se=new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        SymbolEntry *se=new TemporarySymbolEntry($2->getSymPtr()->getType(), SymbolTable::getLabel());
         $$ = new UnaryExpr(se,UnaryExpr::SUB,$2);
     }
     |
     NOT UnaryExp{
-        SymbolEntry *se=new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
+        SymbolEntry *se=new TemporarySymbolEntry($2->getSymPtr()->getType(), SymbolTable::getLabel());
         $$ = new UnaryExpr(se,UnaryExpr::NOT,$2);
     }
     |
@@ -205,6 +204,7 @@ FuncRParams
     }
     |
     Exp{
+    	// Todo:$$=new FuncRParamExpr(nullptr);
         SymbolEntry *se = new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel());
     	$$=new FuncRParamExpr(se);
     	FuncRParamExpr*temp=dynamic_cast<FuncRParamExpr*>($$);
@@ -384,8 +384,15 @@ ConstDef
 
         identifiers->install($1, se);
 
-	// TODO
-	// store init value into symbol table
+        // set init value for global var
+        if(dynamic_cast<IdentifierSymbolEntry*>(se)->isGlobal()){
+            if(!dynamic_cast<ConstantSymbolEntry*>($3->getSymPtr())->isConstant()){
+            	fprintf(stderr, "expression must have a constant value\n");
+                exit(EXIT_FAILURE);
+            }
+            dynamic_cast<IdentifierSymbolEntry*>(se)->setValue(
+                dynamic_cast<ConstantSymbolEntry*>($3->getSymPtr())->getValue());
+        }
 
 
         $$ = new DeclStmt(new Id(se),$3);
@@ -512,14 +519,17 @@ VarDef
 
         se = new IdentifierSymbolEntry(curType, $1, identifiers->getLevel());
 
-        // std::cout<<"ID ASSIGN InitVal"<<std::endl;
-        // TODO
-        // add try catch block to check if id had already been declared
-
         identifiers->install($1, se);
 
-	// TODO
-	// store init value into symbol table
+        // set init value for global var
+        if(dynamic_cast<IdentifierSymbolEntry*>(se)->isGlobal()){
+            if(!dynamic_cast<ConstantSymbolEntry*>($3->getSymPtr())->isConstant()){
+            	fprintf(stderr, "expression must have a constant value\n");
+                exit(EXIT_FAILURE);
+            }
+            dynamic_cast<IdentifierSymbolEntry*>(se)->setValue(
+                dynamic_cast<ConstantSymbolEntry*>($3->getSymPtr())->getValue());
+        }
 
 
         $$ = new DeclStmt(new Id(se),$3);
@@ -551,7 +561,7 @@ InitValList
     ;
 
 
-// sysy dosen't have function declaration
+// sysy dosen'fail have function declaration
 
 FuncDef
     :
@@ -569,7 +579,7 @@ FuncDef
 
         DeclStmts *temp=dynamic_cast<DeclStmts*>($5);
         if(nullptr!=temp){
-            paramsSymbolEntry=temp->getId();
+            paramsSymbolEntry=temp->getSymbolEntrys();
         }
         funcType = new FunctionType($1, paramsSymbolEntry);
 
@@ -599,8 +609,6 @@ FuncDef
             	}
             }
         }
-
-
 
         se = new IdentifierSymbolEntry(
                     funcType, $2, identifiers->getPrev()->getLevel());

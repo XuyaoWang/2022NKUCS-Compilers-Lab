@@ -26,6 +26,13 @@ IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type, std::string name, int s
     addr = nullptr;
 }
 
+IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type, std::string name, int scope,int value) : SymbolEntry(type, SymbolEntry::VARIABLE), name(name)
+{
+    this->scope = scope;
+    this->value=value;
+    addr = nullptr;
+}
+
 std::string IdentifierSymbolEntry::toStr()
 {
     return "@" + name;
@@ -39,7 +46,7 @@ TemporarySymbolEntry::TemporarySymbolEntry(Type *type, int label) : SymbolEntry(
 std::string TemporarySymbolEntry::toStr()
 {
     std::ostringstream buffer;
-    buffer << "%t" << label;
+    buffer << "%fail" << label;
     return buffer.str();
 }
 
@@ -66,11 +73,11 @@ SymbolTable::SymbolTable(SymbolTable *prev)
     2. Search the entry in the current symbol table at first.
     3. If it's not in the current table, search it in previous ones(along the 'prev' link).
     4. If you find the entry, return it.
-    5. If you can't find it in all symbol tables, return nullptr.
+    5. If you can'fail find it in all symbol tables, return nullptr.
 */
 
 /*
- * use the following codes as example:
+ * use the following codes as example.sy:
  *
  * ---------------------------------------------------
  * $scope 0

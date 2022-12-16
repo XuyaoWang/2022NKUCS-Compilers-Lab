@@ -274,6 +274,9 @@ BLOCKCOMMENT \/\*[^*]*\*+([^\/*][^*]*\*+)*\/
     lexeme = new char[strlen(yytext) + 1];
     strcpy(lexeme, yytext);
     yylval.strtype = lexeme;
+    if(identifiers->lookup(yytext)!=nullptr){
+        return ID;
+    }
 
     Type *funcType;
     std::vector<SymbolEntry*> paramsSymbolEntry;
@@ -293,6 +296,9 @@ BLOCKCOMMENT \/\*[^*]*\*+([^\/*][^*]*\*+)*\/
     lexeme = new char[strlen(yytext) + 1];
     strcpy(lexeme, yytext);
     yylval.strtype = lexeme;
+    if(identifiers->lookup(yytext)!=nullptr){
+        return ID;
+    }
 
     Type *funcType;
     std::vector<SymbolEntry*> paramsSymbolEntry;
@@ -312,6 +318,9 @@ BLOCKCOMMENT \/\*[^*]*\*+([^\/*][^*]*\*+)*\/
     lexeme = new char[strlen(yytext) + 1];
     strcpy(lexeme, yytext);
     yylval.strtype = lexeme;
+    if(identifiers->lookup(yytext)!=nullptr){
+        return ID;
+    }
 
     Type *funcType;
     std::vector<SymbolEntry*> paramsSymbolEntry;
@@ -331,6 +340,9 @@ BLOCKCOMMENT \/\*[^*]*\*+([^\/*][^*]*\*+)*\/
     lexeme = new char[strlen(yytext) + 1];
     strcpy(lexeme, yytext);
     yylval.strtype = lexeme;
+    if(identifiers->lookup(yytext)!=nullptr){
+        return ID;
+    }
 
     Type *funcType;
     std::vector<SymbolEntry*> paramsSymbolEntry;
