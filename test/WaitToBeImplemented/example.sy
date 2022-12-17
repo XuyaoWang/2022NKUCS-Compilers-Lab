@@ -1,0 +1,3 @@
+void a1(){}
+void a2(){}
+int main(){return 1;}
