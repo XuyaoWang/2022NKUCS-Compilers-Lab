@@ -1,0 +1,4 @@
+test/WaitToBeImplemented/026_if.ll:7:10: error: '%t3' defined with type 'i1' but expected 'i32'
+  br i32 %t3, label %B5, label %B9
+         ^
+1 error generated.
