@@ -110,6 +110,8 @@ void BinaryExpr::genCode()
     dst=new Operand(dst_se);
     if (op == AND)
     {
+        expr1->setCondExpr();
+        expr2->setCondExpr();
         BasicBlock *trueBB = new BasicBlock(func);  // if the result of lhs is true, jump to the trueBB.
         expr1->genCode();
         backPatch(expr1->trueList(), trueBB);
@@ -120,6 +122,8 @@ void BinaryExpr::genCode()
     }
     else if(op == OR)
     {
+        expr1->setCondExpr();
+        expr2->setCondExpr();
         BasicBlock* trueBB = new BasicBlock(func);
         expr1->genCode();
         backPatch(expr1->falseList(), trueBB);
@@ -204,6 +208,21 @@ void BinaryExpr::genCode()
             break;
         }
         new BinaryInstruction(opcode, dst, src1, src2, bb);
+        if (this->isCondExpr()){
+            Operand*temp=new Operand(new TemporarySymbolEntry(TypeSystem::boolType,SymbolTable::getLabel()));
+            new CmpInstruction(CmpInstruction::NE, temp, dst, new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), bb);
+            dst=temp;
+            //Todo
+            Function*func=bb->getParent();
+            BasicBlock *true_bb, *false_bb, *temp_bb;
+            true_bb = new BasicBlock(func);
+            false_bb = new BasicBlock(func);
+            temp_bb = new BasicBlock(func);
+
+            true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
+            false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
+
+        }
     }
 }
 
@@ -219,6 +238,21 @@ void Id::genCode()
     SymbolEntry*dst_se=new TemporarySymbolEntry(this->getSymPtr()->getType(),SymbolTable::getLabel());
     dst=new Operand(dst_se);
     new LoadInstruction(dst, addr, bb);
+    if (this->isCondExpr()){
+        Operand*temp=new Operand(new TemporarySymbolEntry(TypeSystem::boolType,SymbolTable::getLabel()));
+        new CmpInstruction(CmpInstruction::NE, temp, dst, new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), bb);
+        dst=temp;
+        //Todo
+        Function*func=bb->getParent();
+        BasicBlock *true_bb, *false_bb, *temp_bb;
+        true_bb = new BasicBlock(func);
+        false_bb = new BasicBlock(func);
+        temp_bb = new BasicBlock(func);
+
+        true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
+        false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
+
+    }
 }
 
 void IfStmt::genCode()
@@ -235,7 +269,8 @@ void IfStmt::genCode()
     backPatch(cond->falseList(), end_bb);
 
     builder->setInsertBB(then_bb);
-    thenStmt->genCode();
+    if (thenStmt!= nullptr)
+        thenStmt->genCode();
     then_bb = builder->getInsertBB();
     new UncondBrInstruction(end_bb, then_bb);
 
@@ -489,6 +524,23 @@ void CallExpr::genCode() {
 
     BasicBlock* bb = builder->getInsertBB();
     new CallInstruction(dst, this->getSymPtr(), operands, bb);
+
+    if (this->isCondExpr()){
+        Operand*temp=new Operand(new TemporarySymbolEntry(TypeSystem::boolType,SymbolTable::getLabel()));
+        new CmpInstruction(CmpInstruction::NE, temp, dst, new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), bb);
+        dst=temp;
+        //Todo
+        Function*func=bb->getParent();
+        BasicBlock *true_bb, *false_bb, *temp_bb;
+        true_bb = new BasicBlock(func);
+        false_bb = new BasicBlock(func);
+        temp_bb = new BasicBlock(func);
+
+        true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
+        false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
+
+    }
+
 }
 
 void ExprStmt::genCode() {
