@@ -151,7 +151,9 @@ public:
     void genCode();
     int getOp(){return op;};
     ExprNode *getExpr1(){return expr1;};
+    void setExpr1(ExprNode*expr){expr1=expr;};
     ExprNode *getExpr2(){return expr2;};
+    void setExpr2(ExprNode*expr){expr2=expr;};
 };
 
 class UnaryExpr : public ExprNode

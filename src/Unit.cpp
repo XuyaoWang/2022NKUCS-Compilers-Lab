@@ -31,8 +31,8 @@ void Unit::output() const
 
 Unit::~Unit()
 {
-    for(auto &func:func_list)
-        delete func;
+//    for(auto &func:func_list)
+//        delete func;
 }
 
 void Unit::insertGlobalVar(SymbolEntry *se) {

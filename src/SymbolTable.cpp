@@ -46,7 +46,7 @@ TemporarySymbolEntry::TemporarySymbolEntry(Type *type, int label) : SymbolEntry(
 std::string TemporarySymbolEntry::toStr()
 {
     std::ostringstream buffer;
-    buffer << "%fail" << label;
+    buffer << "%t" << label;
     return buffer.str();
 }
 

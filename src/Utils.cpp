@@ -90,16 +90,16 @@ void Utils::binaryTypeCheck(Type *type1, Type *type2,BinaryExpr*binaryExpr) {
     ExprNode*expr1=binaryExpr->getExpr1();
     ExprNode*expr2=binaryExpr->getExpr2();
 
-    if (op>=BinaryExpr::AND && op<=BinaryExpr::GREATEREQ){
+    if (op>=BinaryExpr::AND && op<=BinaryExpr::OR){
         // Todo:current implicit cast assume two exprs are Integer
         binaryExpr->getSymPtr()->setType(TypeSystem::boolType);
         if (expr1->getSymPtr()->getType()->getSize()!=1){
             ImplicitCastExpr*implicitCastExpr1=new ImplicitCastExpr(expr1,TypeSystem::boolType);
-            expr1=implicitCastExpr1;
+            //binaryExpr->setExpr1(implicitCastExpr1);
         }
         if (expr2->getSymPtr()->getType()->getSize()!=1){
             ImplicitCastExpr*implicitCastExpr2=new ImplicitCastExpr(expr2,TypeSystem::boolType);
-            expr1=implicitCastExpr2;
+            //binaryExpr->setExpr2(implicitCastExpr2);
         }
     }else{
         if (op==BinaryExpr::MOD){
