@@ -25,6 +25,7 @@ public:
     iterator end() { return func_list.end(); };
     reverse_iterator rbegin() { return func_list.rbegin(); };
     reverse_iterator rend() { return func_list.rend(); };
+    void genMachineCode(MachineUnit* munit);
 };
 
 #endif

@@ -87,12 +87,23 @@ private:
     // to store original addr
     Operand *initAddr;
     int value;
-
+private:
     int kind;
+    bool constant;
+    bool allZero;
+    int paramNo;
+public:
+    bool isAllZero() const {return allZero;}
+    void setAllZero(bool allZero) {IdentifierSymbolEntry::allZero = allZero;}
+
+    bool isConstant() const {return constant;}
+    void setIsConstant(bool constant) {IdentifierSymbolEntry::constant = constant;}
+
+    int getParamNo() const { return paramNo; };
+    void setParamNo(bool paramNo) {IdentifierSymbolEntry::paramNo = paramNo;}
 
 public:
-    IdentifierSymbolEntry(Type *type, std::string name, int scope);
-    IdentifierSymbolEntry(Type *type, std::string name, int scope,int value);
+    IdentifierSymbolEntry(Type *type, std::string name, int scope,int paramNo = -1);
     virtual ~IdentifierSymbolEntry() {};
     std::string toStr();
     bool isGlobal() const {return scope == GLOBAL;};
@@ -131,12 +142,15 @@ public:
 class TemporarySymbolEntry : public SymbolEntry
 {
 private:
+    int stack_offset;
     int label;
 public:
     TemporarySymbolEntry(Type *type, int label);
     virtual ~TemporarySymbolEntry() {};
     std::string toStr();
     int getLabel() const {return label;};
+    void setOffset(int offset) { this->stack_offset = offset; };
+    int getOffset() { return this->stack_offset; };
     // You can add any function you need here.
 };
 

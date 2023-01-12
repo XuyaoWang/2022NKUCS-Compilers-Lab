@@ -20,17 +20,17 @@ std::string ConstantSymbolEntry::toStr()
     return buffer.str();
 }
 
-IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type, std::string name, int scope) : SymbolEntry(type, SymbolEntry::VARIABLE), name(name)
-{
+IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type,
+                                             std::string name,
+                                             int scope,
+                                             int paramNo) :
+        SymbolEntry(type, SymbolEntry::VARIABLE),
+        name(name),
+        paramNo(paramNo){
     this->scope = scope;
     addr = nullptr;
-}
-
-IdentifierSymbolEntry::IdentifierSymbolEntry(Type *type, std::string name, int scope,int value) : SymbolEntry(type, SymbolEntry::VARIABLE), name(name)
-{
-    this->scope = scope;
-    this->value=value;
-    addr = nullptr;
+    this->allZero = false;
+    this->constant = false;
 }
 
 std::string IdentifierSymbolEntry::toStr()

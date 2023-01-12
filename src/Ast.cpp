@@ -462,6 +462,7 @@ void CallExpr::genCode() {
         dst = new Operand(se);
     }
     BasicBlock* bb = builder->getInsertBB();
+    printf("ss %x\n",operands[0]);
     new CallInstruction(dst, this->getSymPtr(), operands, bb);
 }
 
