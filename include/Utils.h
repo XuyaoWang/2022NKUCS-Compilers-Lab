@@ -6,6 +6,7 @@
 #define INC_2022NKUCS_COMPILERS_LAB_UTILS_H
 
 #include "Ast.h"
+#include <assert.h>
 
 class Node;
 class ExprNode;

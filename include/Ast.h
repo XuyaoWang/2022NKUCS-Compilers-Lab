@@ -113,6 +113,7 @@ public:
     bool isCondExpr(){return isCond;};
     void setCondExpr(){isCond= true;};
     void unsetCondExpr(){isCond= false;};
+    bool isCallExpr()const{return kind==CALL;};
     bool isConstantExpr()const{return kind==CONSTANT;};
     bool isBinaryExpr()const{return kind==BINARY;};
     bool isUnaryExpr()const{return kind==UNARY;};

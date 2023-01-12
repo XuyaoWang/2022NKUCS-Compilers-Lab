@@ -280,6 +280,7 @@ BLOCKCOMMENT \/\*[^*]*\*+([^\/*][^*]*\*+)*\/
 
     Type *funcType;
     std::vector<SymbolEntry*> paramsSymbolEntry;
+    paramsSymbolEntry.push_back(new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel()));
     funcType = new FunctionType(TypeSystem::voidType, paramsSymbolEntry);
 
     SymbolTable* cur = identifiers;
@@ -324,6 +325,7 @@ BLOCKCOMMENT \/\*[^*]*\*+([^\/*][^*]*\*+)*\/
 
     Type *funcType;
     std::vector<SymbolEntry*> paramsSymbolEntry;
+    paramsSymbolEntry.push_back(new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel()));
     funcType = new FunctionType(TypeSystem::voidType, paramsSymbolEntry);
 
     SymbolTable* cur = identifiers;

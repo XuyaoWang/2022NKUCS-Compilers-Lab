@@ -95,11 +95,11 @@ void Utils::binaryTypeCheck(Type *type1, Type *type2,BinaryExpr*binaryExpr) {
         binaryExpr->getSymPtr()->setType(TypeSystem::boolType);
         if (expr1->getSymPtr()->getType()->getSize()!=1){
             ImplicitCastExpr*implicitCastExpr1=new ImplicitCastExpr(expr1,TypeSystem::boolType);
-            //binaryExpr->setExpr1(implicitCastExpr1);
+            binaryExpr->setExpr1(implicitCastExpr1);
         }
         if (expr2->getSymPtr()->getType()->getSize()!=1){
             ImplicitCastExpr*implicitCastExpr2=new ImplicitCastExpr(expr2,TypeSystem::boolType);
-            //binaryExpr->setExpr2(implicitCastExpr2);
+            binaryExpr->setExpr2(implicitCastExpr2);
         }
     }else{
         if (op==BinaryExpr::MOD){
@@ -132,16 +132,27 @@ void Utils::assignTypeCheck(Type *type1, Type *type2) {
 }
 
 void Utils::unaryTypeCheck(Type *type1, Type *type2, UnaryExpr *unaryExpr) {
-    return;
     ExprNode*expr=unaryExpr->getExpr();
     int op=unaryExpr->getOp();
     switch (op) {
         case UnaryExpr::NOT:{
-            if (expr->getSymPtr()->getType()->getSize()!=1){
-                ImplicitCastExpr*implicitCastExpr=new
-                        ImplicitCastExpr(expr,TypeSystem::boolType);
-                unaryExpr->setExpr(implicitCastExpr);
+            SymbolEntry*dst_se;
+            dst_se=new TemporarySymbolEntry(
+                    TypeSystem::boolType,SymbolTable::getLabel());
+            unaryExpr->setOperand(new Operand(dst_se));
+            break;
+        }
+        case UnaryExpr::SUB:{
+            SymbolEntry*dst_se;
+            if (unaryExpr->getSymPtr()->getType()->getSize()==1){
+                dst_se=new TemporarySymbolEntry(
+                        TypeSystem::intType,SymbolTable::getLabel());
+                unaryExpr->getSymPtr()->setType(TypeSystem::intType);
+            } else{
+                dst_se=new TemporarySymbolEntry(
+                        unaryExpr->getSymPtr()->getType(),SymbolTable::getLabel());
             }
+            unaryExpr->setOperand(new Operand(dst_se));
         }
     }
 }

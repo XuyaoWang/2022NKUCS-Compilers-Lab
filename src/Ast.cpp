@@ -67,10 +67,17 @@ void FunctionDef::genCode()
     /**
      * Construct control flow graph. You need do set successors and predecessors for each basic block.
     */
-
     for (auto bb = func->begin(); bb != func->end(); bb++){
         // get the last instruction of current block
         Instruction *last = (*bb)->rbegin();
+        Instruction *first = (*bb)->begin();
+        while (first != last) {
+            if (first->isCond() || first->isUncond()) {
+                (*bb)->remove(first);
+            }
+            first = first->getNext();
+        }
+
         if (last->isCond()){
             BasicBlock *trueBranch = ((CondBrInstruction *)last)->getTrueBranch();
             BasicBlock *falseBranch = ((CondBrInstruction *)last)->getFalseBranch();
@@ -85,7 +92,7 @@ void FunctionDef::genCode()
             branch->addPred(*bb);
         }
         else if (!last->isRet()){
-            // last instruction is not ret and doesn'fail have predecessors
+            // last instruction is not ret and doesn't have predecessors
             // this means current function returns void or current function is main() function
             if (((FunctionType *)func->getSymPtr()->getType())->getRetType() == TypeSystem::intType){
                 new RetInstruction(new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), (*bb));
@@ -110,8 +117,6 @@ void BinaryExpr::genCode()
     dst=new Operand(dst_se);
     if (op == AND)
     {
-        expr1->setCondExpr();
-        expr2->setCondExpr();
         BasicBlock *trueBB = new BasicBlock(func);  // if the result of lhs is true, jump to the trueBB.
         expr1->genCode();
         backPatch(expr1->trueList(), trueBB);
@@ -122,8 +127,6 @@ void BinaryExpr::genCode()
     }
     else if(op == OR)
     {
-        expr1->setCondExpr();
-        expr2->setCondExpr();
         BasicBlock* trueBB = new BasicBlock(func);
         expr1->genCode();
         backPatch(expr1->falseList(), trueBB);
@@ -178,7 +181,6 @@ void BinaryExpr::genCode()
         true_bb = new BasicBlock(func);
         false_bb = new BasicBlock(func);
         temp_bb = new BasicBlock(func);
-
         true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
         false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
     }
@@ -188,6 +190,7 @@ void BinaryExpr::genCode()
         expr2->genCode();
         Operand *src1 = expr1->getOperand();
         Operand *src2 = expr2->getOperand();
+
         int opcode;
         switch (op)
         {
@@ -208,27 +211,12 @@ void BinaryExpr::genCode()
             break;
         }
         new BinaryInstruction(opcode, dst, src1, src2, bb);
-        if (this->isCondExpr()){
-            Operand*temp=new Operand(new TemporarySymbolEntry(TypeSystem::boolType,SymbolTable::getLabel()));
-            new CmpInstruction(CmpInstruction::NE, temp, dst, new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), bb);
-            dst=temp;
-            //Todo
-            Function*func=bb->getParent();
-            BasicBlock *true_bb, *false_bb, *temp_bb;
-            true_bb = new BasicBlock(func);
-            false_bb = new BasicBlock(func);
-            temp_bb = new BasicBlock(func);
-
-            true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
-            false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
-
-        }
     }
 }
 
 void Constant::genCode()
 {
-    // we don'fail need to generate code.
+    // we don't need to generate code.
 }
 
 void Id::genCode()
@@ -238,21 +226,6 @@ void Id::genCode()
     SymbolEntry*dst_se=new TemporarySymbolEntry(this->getSymPtr()->getType(),SymbolTable::getLabel());
     dst=new Operand(dst_se);
     new LoadInstruction(dst, addr, bb);
-    if (this->isCondExpr()){
-        Operand*temp=new Operand(new TemporarySymbolEntry(TypeSystem::boolType,SymbolTable::getLabel()));
-        new CmpInstruction(CmpInstruction::NE, temp, dst, new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), bb);
-        dst=temp;
-        //Todo
-        Function*func=bb->getParent();
-        BasicBlock *true_bb, *false_bb, *temp_bb;
-        true_bb = new BasicBlock(func);
-        false_bb = new BasicBlock(func);
-        temp_bb = new BasicBlock(func);
-
-        true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
-        false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
-
-    }
 }
 
 void IfStmt::genCode()
@@ -334,7 +307,7 @@ void DeclStmt::genCode()
         Function *func = builder->getInsertBB()->getParent();
         BasicBlock *entry = func->getEntry();
         // set the addr operand of param.
-        // param in initializing doesn'fail have addr.we must initial addr
+        // param in initializing doesn't have addr.we must initial addr
         SymbolEntry *src_se=new TemporarySymbolEntry(se->getType(), SymbolTable::getLabel());
         Operand*src=new Operand(src_se);
         se->setInitAddr(src);
@@ -408,61 +381,28 @@ void UnaryExpr::genCode() {
             Operand* src = expr->getOperand();
             SymbolEntry*dst_se=new TemporarySymbolEntry(TypeSystem::boolType,SymbolTable::getLabel());
             dst=new Operand(dst_se);
-            new CmpInstruction(
-                    CmpInstruction::NE, dst, src,
-                    new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)),
-                    bb);
-            src=dst;
-            dst=new Operand(new TemporarySymbolEntry(TypeSystem::boolType,
-                                                     SymbolTable::getLabel()));
-            new XorInstruction(dst, src, bb);
-            if (this->isCondExpr()){
-                BasicBlock *insert_bb;
-                insert_bb = new BasicBlock(func);
-                true_list.push_back(new CondBrInstruction(nullptr, insert_bb, dst, bb));
-                false_list.push_back(new UncondBrInstruction(nullptr, insert_bb));
-            } else{
-                src=dst;
-                dst=new Operand(new TemporarySymbolEntry(TypeSystem::intType,
-                                                         SymbolTable::getLabel()));
-                new ZextInstruction(dst, src, bb);
-                this->setOperand(dst);
+            if(expr->getSymPtr()->getType()->getSize()==32){
+                Operand* temp = new Operand(new TemporarySymbolEntry(TypeSystem::boolType, SymbolTable::getLabel()));
+                new CmpInstruction(
+                        CmpInstruction::NE, temp, src,
+                        new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)),
+                        bb);
+                src=temp;
             }
+            new XorInstruction(dst, src, bb);
             break;
         }
         case SUB:{
             Operand* src=expr->getOperand();
-            SymbolEntry*dst_se;
-            dst_se=new TemporarySymbolEntry(
-                    this->getSymPtr()->getType(),SymbolTable::getLabel());
-            dst=new Operand(dst_se);
-
             BasicBlock* bb = builder->getInsertBB();
             Operand* zeroOperand = new Operand(new ConstantSymbolEntry(dst->getType(), 0));
             if (src->getType()->getSize()==1
             &&dst->getType()->getSize()!=1){
-
-                new ZextInstruction(dst, src, bb);
-                src=dst;
-                dst_se=new TemporarySymbolEntry(
-                        this->getSymPtr()->getType(),SymbolTable::getLabel());
-                dst=new Operand(dst_se);
+                Operand* temp= new Operand(new TemporarySymbolEntry(TypeSystem::intType, SymbolTable::getLabel()));
+                new ZextInstruction(temp, src, bb);
+                src=temp;
             }
             new BinaryInstruction(BinaryInstruction::SUB, dst, zeroOperand, src, bb);
-            if (this->isCondExpr()){
-                src=dst;
-                dst=new Operand(new TemporarySymbolEntry(
-                        TypeSystem::boolType,SymbolTable::getLabel()));
-                new CmpInstruction(
-                        CmpInstruction::NE, dst, src,
-                        new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)),
-                        bb);
-                BasicBlock *insert_bb;
-                insert_bb = new BasicBlock(func);
-                true_list.push_back(new CondBrInstruction(nullptr, insert_bb, dst, bb));
-                false_list.push_back(new UncondBrInstruction(nullptr, insert_bb));
-            }
-            break;
         }
     }
 }
@@ -506,6 +446,7 @@ void FuncRParamExpr::genCode() {
     for(auto iter=params.begin();iter!=params.end();iter++){
         (*iter)->genCode();
     }
+
 }
 
 void CallExpr::genCode() {
@@ -514,33 +455,14 @@ void CallExpr::genCode() {
         rParams->genCode();
         operands=dynamic_cast<FuncRParamExpr*>(rParams)->getOperands();
     }
-
     Type* type = dynamic_cast<FunctionType*>(symbolEntry->getType())->getRetType();
     if (type != TypeSystem::voidType) {
         SymbolEntry* se =
                 new TemporarySymbolEntry(type, SymbolTable::getLabel());
         dst = new Operand(se);
     }
-
     BasicBlock* bb = builder->getInsertBB();
     new CallInstruction(dst, this->getSymPtr(), operands, bb);
-
-    if (this->isCondExpr()){
-        Operand*temp=new Operand(new TemporarySymbolEntry(TypeSystem::boolType,SymbolTable::getLabel()));
-        new CmpInstruction(CmpInstruction::NE, temp, dst, new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), bb);
-        dst=temp;
-        //Todo
-        Function*func=bb->getParent();
-        BasicBlock *true_bb, *false_bb, *temp_bb;
-        true_bb = new BasicBlock(func);
-        false_bb = new BasicBlock(func);
-        temp_bb = new BasicBlock(func);
-
-        true_list.push_back(new CondBrInstruction(true_bb, temp_bb, dst, bb));
-        false_list.push_back(new UncondBrInstruction(false_bb, temp_bb));
-
-    }
-
 }
 
 void ExprStmt::genCode() {
@@ -639,9 +561,9 @@ void IfStmt::typeCheck()
     }
     cond->typeCheck();
     Type*condType=cond->getSymPtr()->getType();
-    if (!condType->isInt()){
-        fprintf(stderr, "the result of conditional operation isn'fail int type in IfStmt\n");
-        exit(EXIT_FAILURE);
+    if (condType->getSize()!=1){
+        ImplicitCastExpr*implicitCastExpr=new ImplicitCastExpr(cond,TypeSystem::boolType);
+        cond=implicitCastExpr;
     }
 
     if(this->thenStmt!= nullptr){
@@ -659,10 +581,11 @@ void IfElseStmt::typeCheck(){
     }
     cond->typeCheck();
     Type*condType=cond->getSymPtr()->getType();
-    if (!condType->isInt()){
-        fprintf(stderr, "the result of conditional operation isn'fail int type in IfElseStmt\n");
-        exit(EXIT_FAILURE);
+    if (condType->getSize()!=1){
+        ImplicitCastExpr*implicitCastExpr=new ImplicitCastExpr(cond,TypeSystem::boolType);
+        cond=implicitCastExpr;
     }
+
     Type*type1= nullptr;
     Type*type2= nullptr;
     if(this->thenStmt!= nullptr){
@@ -798,9 +721,9 @@ void WhileStmt::typeCheck() {
     }
     cond->typeCheck();
     Type*condType=cond->getSymPtr()->getType();
-    if (!condType->isInt()){
-        fprintf(stderr, "the result of conditional operation isn'fail int type in WhileStmt\n");
-        exit(EXIT_FAILURE);
+    if (condType->getSize()!=1){
+        ImplicitCastExpr*implicitCastExpr=new ImplicitCastExpr(cond,TypeSystem::boolType);
+        cond=implicitCastExpr;
     }
 
     if (stmt != nullptr){
@@ -816,7 +739,6 @@ void FuncRParamExpr::typeCheck() {
     for (auto i = 0; i < params.size(); ++i) {
         params[i]->typeCheck();
     }
-    return;
 }
 
 void CallExpr::typeCheck() {
@@ -827,6 +749,8 @@ void CallExpr::typeCheck() {
     FuncRParamExpr*funcRParamExpr=dynamic_cast<FuncRParamExpr*>(this->rParams);
     std::vector<ExprNode*> exprNodes;
     if (funcRParamExpr!= nullptr){
+        funcRParamExpr->typeCheck();
+
         exprNodes=funcRParamExpr->getParams();
         for(auto iter=exprNodes.begin();iter!=exprNodes.end();iter++){
             rParams.push_back((*iter)->getSymPtr());
@@ -834,7 +758,7 @@ void CallExpr::typeCheck() {
     }
 
 
-    // sysy doesn'fail support FParams to have default values
+    // sysy doesn't support FParams to have default values
     // Such a nice features for developer
     if (rParams.size()!=fParams.size()){
         fprintf(stderr, "The number of RParams and LParams doesn'fail match, "
@@ -843,7 +767,15 @@ void CallExpr::typeCheck() {
     }
     for (auto i = 0; i < rParams.size(); ++i) {
         Type*type1=rParams[i]->getType();
+        if (type1->isFunc()){
+            type1=dynamic_cast<FunctionType*>(type1)->getRetType();
+        }
+
         Type*type2=fParams[i]->getType();
+        if (type2->isFunc()){
+            type2=dynamic_cast<FunctionType*>(type2)->getRetType();
+        }
+
         if (type1->getKind()==type2->getKind()){
             continue;
         }
@@ -861,7 +793,7 @@ void CallExpr::typeCheck() {
 }
 
 void ExprStmt::typeCheck() {
-    return;
+    expr->typeCheck();
 }
 
 void BinaryExpr::output(int level)
@@ -969,10 +901,12 @@ void CompoundStmt::output(int level)
 
 void SeqNode::output(int level)
 {
-    if(nullptr!=stmt1)
+    if(nullptr!=stmt1){
         stmt1->output(level);
-    if(nullptr!=stmt1)
+    }
+    if(nullptr!=stmt1){
         stmt2->output(level);
+    }
 }
 
 void DeclStmt::output(int level)
@@ -1107,7 +1041,7 @@ void CallExpr::output(int level) {
 }
 
 CallExpr::CallExpr(SymbolEntry *se, ExprNode *params) :
-        ExprNode(se), rParams(params){
+        ExprNode(se,ExprNode::CALL), rParams(params){
 
 }
 
@@ -1124,17 +1058,23 @@ void ImplicitCastExpr::genCode() {
     BasicBlock* bb = builder->getInsertBB();
     if (this->getSymPtr()->getType() == TypeSystem::boolType) {  // comparing ptr, should be ok here.
         Function* func = bb->getParent();
+        BasicBlock* true_bb = new BasicBlock(func);
         BasicBlock* temp_bb = new BasicBlock(func);
+        BasicBlock* false_bb = new BasicBlock(func);
 
         new CmpInstruction(
                 CmpInstruction::NE, this->dst, this->srcExpr->getOperand(),
                 new Operand(new ConstantSymbolEntry(TypeSystem::intType, 0)), bb);
         this->trueList().push_back(
-                new CondBrInstruction(nullptr, temp_bb, this->dst, bb));
-        this->falseList().push_back(new UncondBrInstruction(nullptr, temp_bb));
+                new CondBrInstruction(true_bb, temp_bb, this->dst, bb));
+        this->falseList().push_back(new UncondBrInstruction(false_bb, temp_bb));
+    } else if (this->getSymPtr()->getType() == TypeSystem::intType){
+
+    } else if (this->getSymPtr()->getType() == TypeSystem::floatType){
+
     }
 }
 
 void ImplicitCastExpr::typeCheck() {
-    return;
+    this->srcExpr->typeCheck();
 }
